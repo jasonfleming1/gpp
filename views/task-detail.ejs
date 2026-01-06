@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/">ASD Time Tracker</a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/" class="nav-link">Dashboard</a>
+      <a href="/tasks" class="nav-link">Tasks</a>
+      <button id="importBtn" class="btn btn-primary">Import Data</button>
+      <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
+    </div>
+  </nav>
+
+  <div id="importModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Import Data</h2>
+        <button class="modal-close" onclick="closeImportModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="fileInput">Select Excel File (.xlsx)</label>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" class="file-input">
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="clearDataCheckbox">
+            Clear existing data before import
+          </label>
+          <p class="help-text warning">Warning: This will delete all existing tasks, estimates, and quality scores.</p>
+        </div>
+        <p class="help-text">Select a timekeeping Excel file with '3e' and 'scorebyTFS' sheets.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+        <button class="btn btn-primary" id="doImportBtn" onclick="doImport()">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="container">
+    <div class="task-detail">
+      <div class="page-header">
+        <a href="/tasks" class="back-link">&larr; Back to Tasks</a>
+        <h1>ASD <%= task.tfsId %></h1>
+      </div>
+
+      <div class="task-info">
+        <h2><%= task.title || 'No Title' %></h2>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value"><%= task.totalActualHours.toFixed(2) %></div>
+            <div class="stat-label">Actual Hours</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="estimatedDisplay"><%= task.estimated !== null ? task.estimated : '-' %></div>
+            <div class="stat-label">Estimated Hours</div>
+          </div>
+          <div class="stat-card <%= task.estimated !== null ? (task.estimated >= task.totalActualHours ? 'positive' : 'negative') : '' %>">
+            <div class="stat-value"><%= task.estimated !== null ? (task.estimated - task.totalActualHours).toFixed(2) : '-' %></div>
+            <div class="stat-label">Variance</div>
+          </div>
+          <div class="stat-card highlight">
+            <div class="stat-value" id="qualityDisplay"><%= task.quality !== null ? task.quality + '/5' : '-' %></div>
+            <div class="stat-label">Quality Score</div>
+          </div>
+        </div>
+
+        <div class="edit-section">
+          <h3>Update Estimates & Quality</h3>
+          <form id="updateForm" class="inline-form">
+            <div class="form-group">
+              <label for="estimated">Estimated Hours</label>
+              <input type="number" id="estimated" name="estimated" step="0.25" min="0" value="<%= task.estimated || '' %>">
+            </div>
+            <div class="form-group">
+              <label for="quality">Quality Score</label>
+              <select id="quality" name="quality">
+                <option value="">Select...</option>
+                <option value="1" <%= task.quality === 1 ? 'selected' : '' %>>1 - Poor</option>
+                <option value="2" <%= task.quality === 2 ? 'selected' : '' %>>2 - Below Average</option>
+                <option value="3" <%= task.quality === 3 ? 'selected' : '' %>>3 - Average</option>
+                <option value="4" <%= task.quality === 4 ? 'selected' : '' %>>4 - Good</option>
+                <option value="5" <%= task.quality === 5 ? 'selected' : '' %>>5 - Excellent</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </form>
+        </div>
+
+        <div class="developer-section">
+          <h3>Developer Breakdown</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Developer</th>
+                <th>Hours</th>
+                <th>% of Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (task.developerBreakdown && task.developerBreakdown.size > 0) { %>
+                <% task.developerBreakdown.forEach(function(hours, name) { %>
+                  <tr>
+                    <td><%= name %></td>
+                    <td><%= hours.toFixed(2) %></td>
+                    <td><%= ((hours / task.totalActualHours) * 100).toFixed(1) %>%</td>
+                  </tr>
+                <% }); %>
+              <% } else { %>
+                <tr><td colspan="3">No time entries</td></tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="entries-section">
+          <h3>Time Entries (<%= task.timeEntries.length %>)</h3>
+          <table class="data-table small">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Developer</th>
+                <th>Hours</th>
+                <th>Activity</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% task.timeEntries.slice(0, 50).forEach(function(entry) { %>
+                <tr>
+                  <td><%= new Date(entry.workDate).toLocaleDateString() %></td>
+                  <td><%= entry.firstName %> <%= entry.lastName %></td>
+                  <td><%= entry.workHrs.toFixed(2) %></td>
+                  <td><%= entry.activityCodeDesc || '-' %></td>
+                  <td class="truncate"><%= (entry.narrative || '').replace(/<[^>]*>/g, '').substring(0, 100) %></td>
+                </tr>
+              <% }); %>
+              <% if (task.timeEntries.length > 50) { %>
+                <tr><td colspan="5">... and <%= task.timeEntries.length - 50 %> more entries</td></tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    document.getElementById('updateForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const estimated = document.getElementById('estimated').value;
+      const quality = document.getElementById('quality').value;
+
+      try {
+        const res = await fetch('/api/tfs/<%= task.tfsId %>', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estimated, quality })
+        });
+
+        if (!res.ok) throw new Error('Failed to save');
+
+        const data = await res.json();
+        document.getElementById('estimatedDisplay').textContent = data.estimated !== null ? data.estimated : '-';
+        document.getElementById('qualityDisplay').textContent = data.quality !== null ? data.quality + '/5' : '-';
+        alert('Saved successfully!');
+      } catch (error) {
+        alert('Error saving: ' + error.message);
+      }
+    });
+  </script>
+</body>
+</html>

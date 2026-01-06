@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Error</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/">ASD Time Tracker</a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/" class="nav-link">Dashboard</a>
+      <a href="/tasks" class="nav-link">Tasks</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="error-page">
+      <h1>Error</h1>
+      <p class="error-message"><%= typeof error !== 'undefined' ? error : 'An unexpected error occurred' %></p>
+      <a href="/" class="btn btn-primary">Go Home</a>
+    </div>
+  </main>
+</body>
+</html>

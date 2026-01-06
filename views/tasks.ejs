@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/">ASD Time Tracker</a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/" class="nav-link">Dashboard</a>
+      <a href="/tasks" class="nav-link">Tasks</a>
+      <a href="/scorecard" class="nav-link">Scorecard</a>
+      <button id="importBtn" class="btn btn-primary">Import Data</button>
+      <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
+      <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
+    </div>
+  </nav>
+
+  <div id="importModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Import Data</h2>
+        <button class="modal-close" onclick="closeImportModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="fileInput">Select Excel File (.xlsx)</label>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" class="file-input">
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="clearDataCheckbox">
+            Clear existing data before import
+          </label>
+          <p class="help-text warning">Warning: This will delete all existing tasks, estimates, and quality scores.</p>
+        </div>
+        <p class="help-text">Select a timekeeping Excel file with '3e' and 'scorebyTFS' sheets.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+        <button class="btn btn-primary" id="doImportBtn" onclick="doImport()">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="container">
+    <div class="tasks-page">
+      <div class="page-header">
+        <h1>ASD Tasks</h1>
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="Search by ASD ID, title, or developer..." value="<%= search %>">
+          <button id="searchBtn" class="btn btn-primary">Search</button>
+        </div>
+      </div>
+
+      <div class="filters">
+        <a href="/tasks" class="filter-btn <%= filter === 'all' ? 'active' : '' %>">All</a>
+        <a href="/tasks?filter=needsEstimate" class="filter-btn <%= filter === 'needsEstimate' ? 'active' : '' %>">Needs Estimate</a>
+        <a href="/tasks?filter=needsQuality" class="filter-btn <%= filter === 'needsQuality' ? 'active' : '' %>">Needs Quality</a>
+        <a href="/tasks?filter=complete" class="filter-btn <%= filter === 'complete' ? 'active' : '' %>">Complete</a>
+      </div>
+
+      <div id="tasksContainer">
+        <div class="loading">Loading tasks...</div>
+      </div>
+
+      <div id="pagination" class="pagination"></div>
+    </div>
+
+    <div id="editModal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Edit ASD Task <span id="modalTfsId"></span></h2>
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="titleInput">Title</label>
+            <input type="text" id="titleInput" placeholder="Enter task title">
+          </div>
+          <div class="form-group">
+            <label for="estimatedInput">Estimated Hours</label>
+            <input type="number" id="estimatedInput" step="0.25" min="0" placeholder="Enter estimate">
+          </div>
+          <div class="form-group">
+            <label for="qualityInput">Quality Score (1-5)</label>
+            <select id="qualityInput">
+              <option value="">Select score...</option>
+              <option value="1">1 - Poor</option>
+              <option value="2">2 - Below Average</option>
+              <option value="3">3 - Average</option>
+              <option value="4">4 - Good</option>
+              <option value="5">5 - Excellent</option>
+            </select>
+          </div>
+          <div id="developerBreakdown" class="developer-breakdown"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveTask()">Save</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    const currentFilter = '<%= filter %>';
+    const currentSearch = '<%= search %>';
+    let currentPage = <%= currentPage %>;
+    let currentSortField = 'tfsId';
+    let currentSortOrder = 'desc';
+    let editingTfsId = null;
+
+    const columns = [
+      { field: 'tfsId', label: 'ASD ID', sortable: true },
+      { field: 'title', label: 'Title', sortable: true },
+      { field: 'developers', label: 'Developers', sortable: false },
+      { field: 'totalActualHours', label: 'Actual', sortable: true },
+      { field: 'estimated', label: 'Est.', sortable: true },
+      { field: 'variance', label: 'Var.', sortable: false },
+      { field: 'quality', label: 'Quality', sortable: true },
+      { field: 'actions', label: 'Actions', sortable: false }
+    ];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTasks();
+
+      document.getElementById('searchBtn').addEventListener('click', doSearch);
+      document.getElementById('searchInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') doSearch();
+      });
+    });
+
+    function doSearch() {
+      const search = document.getElementById('searchInput').value;
+      window.location = '/tasks?search=' + encodeURIComponent(search) + '&filter=' + currentFilter;
+    }
+
+    function sortBy(field) {
+      if (currentSortField === field) {
+        currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSortField = field;
+        currentSortOrder = 'desc';
+      }
+      currentPage = 1;
+      loadTasks();
+    }
+
+    async function loadTasks() {
+      const container = document.getElementById('tasksContainer');
+      try {
+        let url = '/api/tfs?page=' + currentPage + '&filter=' + currentFilter;
+        url += '&sortField=' + currentSortField + '&sortOrder=' + currentSortOrder;
+        if (currentSearch) url += '&search=' + encodeURIComponent(currentSearch);
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.tasks.length === 0) {
+          container.innerHTML = '<div class="empty-state">No tasks found</div>';
+          document.getElementById('pagination').innerHTML = '';
+          return;
+        }
+
+        let html = '<table class="data-table"><thead><tr>';
+        columns.forEach(col => {
+          if (col.sortable) {
+            const isActive = currentSortField === col.field;
+            const arrow = isActive ? (currentSortOrder === 'asc' ? ' [asc]' : ' [desc]') : '';
+            html += '<th class="sortable' + (isActive ? ' active' : '') + '" onclick="sortBy(\'' + col.field + '\')">';
+            html += col.label + arrow + '</th>';
+          } else {
+            html += '<th>' + col.label + '</th>';
+          }
+        });
+        html += '</tr></thead><tbody>';
+
+        data.tasks.forEach(task => {
+          const variance = task.estimated !== null
+            ? (task.estimated - task.totalActualHours).toFixed(2)
+            : '-';
+          const varianceClass = task.estimated !== null
+            ? (task.estimated >= task.totalActualHours ? 'positive' : 'negative')
+            : '';
+          const devList = task.developers && task.developers.length > 0
+            ? task.developers.join(', ')
+            : '-';
+
+          html += '<tr>';
+          html += '<td><strong>' + task.tfsId + '</strong></td>';
+          html += '<td class="truncate">' + (task.title || '-') + '</td>';
+          html += '<td class="truncate dev-cell">' + devList + '</td>';
+          html += '<td>' + task.totalActualHours.toFixed(2) + '</td>';
+          html += '<td>' + (task.estimated !== null ? task.estimated : '<span class="badge warning">Missing</span>') + '</td>';
+          html += '<td class="' + varianceClass + '">' + variance + '</td>';
+          html += '<td>' + (task.quality !== null ? task.quality + '/5' : '<span class="badge info">Missing</span>') + '</td>';
+          html += '<td>';
+          html += '<button class="btn btn-sm btn-primary" onclick="editTask(' + task.tfsId + ')">Edit</button> ';
+          html += '<a href="/tasks/' + task.tfsId + '" class="btn btn-sm btn-secondary">Details</a>';
+          html += '</td></tr>';
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+        // Render pagination
+        const pag = data.pagination;
+        let pagHtml = '';
+        if (pag.pages > 1) {
+          if (pag.page > 1) pagHtml += '<a href="javascript:goToPage(' + (pag.page - 1) + ')" class="page-link">Prev</a>';
+          for (let i = 1; i <= Math.min(pag.pages, 10); i++) {
+            pagHtml += '<a href="javascript:goToPage(' + i + ')" class="page-link ' + (i === pag.page ? 'active' : '') + '">' + i + '</a>';
+          }
+          if (pag.page < pag.pages) pagHtml += '<a href="javascript:goToPage(' + (pag.page + 1) + ')" class="page-link">Next</a>';
+        }
+        document.getElementById('pagination').innerHTML = pagHtml;
+
+      } catch (error) {
+        container.innerHTML = '<div class="error">Error loading tasks: ' + error.message + '</div>';
+      }
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      loadTasks();
+    }
+
+    async function editTask(tfsId) {
+      editingTfsId = tfsId;
+      document.getElementById('modalTfsId').textContent = tfsId;
+
+      try {
+        const [taskRes, devRes] = await Promise.all([
+          fetch('/api/tfs/' + tfsId),
+          fetch('/api/tfs/' + tfsId + '/developers')
+        ]);
+        const task = await taskRes.json();
+        const devData = await devRes.json();
+
+        document.getElementById('titleInput').value = task.title || '';
+        document.getElementById('estimatedInput').value = task.estimated || '';
+        document.getElementById('qualityInput').value = task.quality || '';
+
+        const devContainer = document.getElementById('developerBreakdown');
+        if (devData.developers && devData.developers.length > 0) {
+          let devHtml = '<h3>Developer Hours (Total: ' + devData.totalHours.toFixed(2) + ')</h3>';
+          devHtml += '<ul class="dev-list">';
+          devData.developers.forEach(d => {
+            devHtml += '<li>' + d.name + ': <strong>' + d.hours + ' hrs</strong></li>';
+          });
+          devHtml += '</ul>';
+          devContainer.innerHTML = devHtml;
+        } else {
+          devContainer.innerHTML = '<p>No time entries recorded</p>';
+        }
+
+        document.getElementById('editModal').classList.remove('hidden');
+      } catch (error) {
+        alert('Error loading task: ' + error.message);
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('editModal').classList.add('hidden');
+      editingTfsId = null;
+    }
+
+    async function saveTask() {
+      if (!editingTfsId) return;
+
+      const title = document.getElementById('titleInput').value;
+      const estimated = document.getElementById('estimatedInput').value;
+      const quality = document.getElementById('qualityInput').value;
+
+      try {
+        const res = await fetch('/api/tfs/' + editingTfsId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, estimated, quality })
+        });
+
+        if (!res.ok) throw new Error('Failed to save');
+
+        closeModal();
+        loadTasks();
+      } catch (error) {
+        alert('Error saving: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>

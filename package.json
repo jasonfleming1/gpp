@@ -1,0 +1,26 @@
+{
+  "name": "gpp-tfs-tracker",
+  "version": "1.0.0",
+  "description": "TFS Time Tracking and Quality Scoring App",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "tfs",
+    "timekeeping",
+    "men-stack"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "ejs": "^3.1.10",
+    "express": "^5.2.1",
+    "mongoose": "^9.1.1",
+    "multer": "^2.0.2",
+    "xlsx": "^0.18.5"
+  }
+}

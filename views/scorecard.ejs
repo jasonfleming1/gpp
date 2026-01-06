@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/">ASD Time Tracker</a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/" class="nav-link">Dashboard</a>
+      <a href="/tasks" class="nav-link">Tasks</a>
+      <a href="/scorecard" class="nav-link">Scorecard</a>
+      <button id="importBtn" class="btn btn-primary">Import Data</button>
+      <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
+      <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
+    </div>
+  </nav>
+
+  <div id="importModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Import Data</h2>
+        <button class="modal-close" onclick="closeImportModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="fileInput">Select Excel File (.xlsx)</label>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" class="file-input">
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="clearDataCheckbox">
+            Clear existing data before import
+          </label>
+          <p class="help-text warning">Warning: This will delete all existing tasks, estimates, and quality scores.</p>
+        </div>
+        <p class="help-text">Select a timekeeping Excel file with '3e' and 'scorebyTFS' sheets.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+        <button class="btn btn-primary" id="doImportBtn" onclick="doImport()">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="container">
+    <div class="scorecard-page">
+      <div class="scorecard-header">
+        <h1>Developer Scorecard</h1>
+        <a href="/" class="btn btn-secondary">Back to Dashboard</a>
+      </div>
+
+      <div id="loadingState" class="loading">
+        <div class="spinner"></div>
+        <p>Loading developer data...</p>
+      </div>
+
+      <div id="scorecardContent" style="display: none;">
+        <!-- Comparison Charts -->
+        <div class="comparison-section">
+          <h2>Team Overview</h2>
+          <div class="comparison-charts">
+            <div class="comparison-chart-card">
+              <h3>Hours by Developer</h3>
+              <canvas id="hoursComparisonChart"></canvas>
+            </div>
+            <div class="comparison-chart-card">
+              <h3>Quality Scores</h3>
+              <canvas id="qualityComparisonChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Developer Cards -->
+        <h2 style="margin-bottom: 1rem;">Individual Performance</h2>
+        <div id="developerGrid" class="scorecard-grid"></div>
+
+        <!-- Quarterly Trend -->
+        <div class="quarterly-section">
+          <h2>Quarterly Workload Trends</h2>
+          <div class="quarterly-chart-card">
+            <canvas id="quarterlyChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div id="emptyState" class="empty-state" style="display: none;">
+        <h3>No Developer Data</h3>
+        <p>Import some data to see the developer scorecard.</p>
+        <button class="btn btn-primary" onclick="openImportModal()">Import Data</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    // Chart color palette
+    const chartColors = [
+      '#B4252D', '#057196', '#D38428', '#16a34a', '#872E24',
+      '#6366f1', '#ec4899', '#14b8a6', '#f97316', '#8b5cf6'
+    ];
+
+    function getChartColors() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      return {
+        text: isDark ? '#f9fafb' : '#111827',
+        grid: isDark ? '#374151' : '#e5e7eb',
+        primary: isDark ? '#d64550' : '#B4252D',
+        secondary: isDark ? '#3d8eb3' : '#057196',
+        success: isDark ? '#22c55e' : '#16a34a',
+        warning: isDark ? '#e9a03a' : '#D38428'
+      };
+    }
+
+    let charts = {};
+    let scorecardData = null;
+
+    async function loadScorecard() {
+      try {
+        const res = await fetch('/api/tfs/developers/scorecard');
+        const data = await res.json();
+        scorecardData = data;
+
+        document.getElementById('loadingState').style.display = 'none';
+
+        if (!data.developers || data.developers.length === 0) {
+          document.getElementById('emptyState').style.display = 'block';
+          return;
+        }
+
+        document.getElementById('scorecardContent').style.display = 'block';
+        renderDeveloperCards(data.developers);
+        renderComparisonCharts(data.developers);
+        renderQuarterlyChart(data.developers, data.quarters);
+      } catch (error) {
+        console.error('Failed to load scorecard:', error);
+        document.getElementById('loadingState').innerHTML =
+          '<p class="error">Failed to load developer data</p>';
+      }
+    }
+
+    function renderDeveloperCards(developers) {
+      const grid = document.getElementById('developerGrid');
+      grid.innerHTML = developers.map((dev, index) => {
+        const initials = dev.name.split(' ').map(n => n[0]).join('').toUpperCase();
+        const qualityClass = dev.avgQuality >= 4 ? 'quality-good' :
+                            dev.avgQuality >= 3 ? 'quality-avg' : 'quality-poor';
+        const qualityDisplay = dev.avgQuality !== null ? dev.avgQuality.toFixed(1) : 'N/A';
+
+        return `
+          <div class="developer-card">
+            <div class="developer-card-header">
+              <div class="developer-avatar">${initials}</div>
+              <div class="developer-info">
+                <h3>${dev.name}</h3>
+                <p>#${index + 1} by hours worked</p>
+              </div>
+            </div>
+            <div class="developer-card-stats">
+              <div class="developer-stat">
+                <div class="developer-stat-value">${dev.totalHours.toFixed(0)}</div>
+                <div class="developer-stat-label">Hours</div>
+              </div>
+              <div class="developer-stat">
+                <div class="developer-stat-value">${dev.taskCount}</div>
+                <div class="developer-stat-label">Tasks</div>
+              </div>
+              <div class="developer-stat">
+                <div class="developer-stat-value ${qualityClass}">${qualityDisplay}</div>
+                <div class="developer-stat-label">Avg Quality</div>
+              </div>
+            </div>
+            <div class="developer-card-chart">
+              <canvas id="devChart${index}"></canvas>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Render mini sparkline charts for each developer
+      developers.forEach((dev, index) => {
+        const ctx = document.getElementById(`devChart${index}`);
+        if (!ctx) return;
+
+        const quarters = Object.keys(dev.quarterlyHours).sort((a, b) => {
+          const [qa, ya] = a.replace('Q', '').split(' ');
+          const [qb, yb] = b.replace('Q', '').split(' ');
+          return (parseInt(ya) * 4 + parseInt(qa)) - (parseInt(yb) * 4 + parseInt(qb));
+        });
+
+        const colors = getChartColors();
+
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: quarters,
+            datasets: [{
+              data: quarters.map(q => dev.quarterlyHours[q] || 0),
+              borderColor: chartColors[index % chartColors.length],
+              backgroundColor: chartColors[index % chartColors.length] + '20',
+              fill: true,
+              tension: 0.4,
+              pointRadius: 0,
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: { display: false },
+              y: { display: false }
+            }
+          }
+        });
+      });
+    }
+
+    function renderComparisonCharts(developers) {
+      const colors = getChartColors();
+      const top10 = developers.slice(0, 10);
+
+      // Hours comparison chart
+      charts.hours = new Chart(document.getElementById('hoursComparisonChart'), {
+        type: 'bar',
+        data: {
+          labels: top10.map(d => d.name.split(' ')[0]),
+          datasets: [{
+            label: 'Hours',
+            data: top10.map(d => d.totalHours),
+            backgroundColor: chartColors.slice(0, top10.length),
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              grid: { color: colors.grid }
+            },
+            y: {
+              grid: { display: false }
+            }
+          }
+        }
+      });
+
+      // Quality comparison chart
+      const devsWithQuality = top10.filter(d => d.avgQuality !== null);
+      charts.quality = new Chart(document.getElementById('qualityComparisonChart'), {
+        type: 'bar',
+        data: {
+          labels: devsWithQuality.map(d => d.name.split(' ')[0]),
+          datasets: [{
+            label: 'Quality',
+            data: devsWithQuality.map(d => d.avgQuality),
+            backgroundColor: devsWithQuality.map(d =>
+              d.avgQuality >= 4 ? colors.success :
+              d.avgQuality >= 3 ? colors.warning : colors.primary
+            ),
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              min: 0,
+              max: 5,
+              grid: { color: colors.grid }
+            },
+            y: {
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    function renderQuarterlyChart(developers, quarters) {
+      const colors = getChartColors();
+      const top5 = developers.slice(0, 5);
+
+      const datasets = top5.map((dev, index) => ({
+        label: dev.name,
+        data: quarters.map(q => dev.quarterlyHours[q] || 0),
+        borderColor: chartColors[index],
+        backgroundColor: chartColors[index] + '20',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 3
+      }));
+
+      charts.quarterly = new Chart(document.getElementById('quarterlyChart'), {
+        type: 'line',
+        data: {
+          labels: quarters,
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                padding: 20,
+                usePointStyle: true,
+                pointStyle: 'circle'
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false }
+            },
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Hours Worked'
+              },
+              grid: { color: colors.grid }
+            }
+          }
+        }
+      });
+    }
+
+    // Theme change observer
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'data-theme') {
+          Object.values(charts).forEach(chart => chart?.destroy());
+          charts = {};
+          if (scorecardData) {
+            renderComparisonCharts(scorecardData.developers);
+            renderQuarterlyChart(scorecardData.developers, scorecardData.quarters);
+          }
+        }
+      });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadScorecard();
+      observer.observe(document.documentElement, { attributes: true });
+    });
+  </script>
+</body>
+</html>

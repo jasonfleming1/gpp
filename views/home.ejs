@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/">ASD Time Tracker</a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/" class="nav-link">Dashboard</a>
+      <a href="/tasks" class="nav-link">Tasks</a>
+      <a href="/scorecard" class="nav-link">Scorecard</a>
+      <button id="importBtn" class="btn btn-primary">Import Data</button>
+      <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
+      <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
+    </div>
+  </nav>
+
+  <div id="importModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Import Data</h2>
+        <button class="modal-close" onclick="closeImportModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="fileInput">Select Excel File (.xlsx)</label>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" class="file-input">
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="clearDataCheckbox">
+            Clear existing data before import
+          </label>
+          <p class="help-text warning">Warning: This will delete all existing tasks, estimates, and quality scores.</p>
+        </div>
+        <p class="help-text">Select a timekeeping Excel file with '3e' and 'scorebyTFS' sheets.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+        <button class="btn btn-primary" id="doImportBtn" onclick="doImport()">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="container">
+    <div class="dashboard">
+      <h1>Dashboard</h1>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.totalTasks || 0 %></div>
+          <div class="stat-label">Total ASD Tasks</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.tasksWithEstimates || 0 %></div>
+          <div class="stat-label">With Estimates</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.tasksWithQuality || 0 %></div>
+          <div class="stat-label">With Quality Scores</div>
+        </div>
+        <div class="stat-card highlight">
+          <div class="stat-value"><%= stats.avgQuality ? stats.avgQuality.toFixed(2) : 'N/A' %></div>
+          <div class="stat-label">Avg Quality (1-5)</div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card wide">
+          <div class="stat-value"><%= (stats.totalEstimatedHours || 0).toFixed(1) %></div>
+          <div class="stat-label">Total Estimated Hours</div>
+        </div>
+        <div class="stat-card wide">
+          <div class="stat-value"><%= (stats.totalActualHours || 0).toFixed(1) %></div>
+          <div class="stat-label">Total Actual Hours</div>
+        </div>
+      </div>
+
+      <div class="charts-section">
+        <h2>Analytics</h2>
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3>Task Status</h3>
+            <canvas id="taskStatusChart"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Quality Distribution</h3>
+            <canvas id="qualityChart"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Hours by Developer</h3>
+            <canvas id="developerChart"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Estimated vs Actual Hours</h3>
+            <canvas id="accuracyChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-actions">
+        <h2>Quick Filters</h2>
+        <div class="action-buttons">
+          <a href="/tasks?filter=needsEstimate" class="btn btn-warning">Needs Estimate</a>
+          <a href="/tasks?filter=needsQuality" class="btn btn-info">Needs Quality Score</a>
+          <a href="/tasks?filter=complete" class="btn btn-success">Complete</a>
+          <a href="/tasks" class="btn btn-secondary">View All</a>
+        </div>
+      </div>
+
+      <div class="recent-tasks">
+        <h2>Recently Updated Tasks</h2>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ASD ID</th>
+              <th>Title</th>
+              <th>Actual Hours</th>
+              <th>Estimated</th>
+              <th>Quality</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% recentTasks.forEach(function(task) { %>
+              <tr onclick="window.location='/tasks/<%= task.tfsId %>'" style="cursor:pointer">
+                <td><strong><%= task.tfsId %></strong></td>
+                <td class="truncate"><%= task.title || '-' %></td>
+                <td><%= task.totalActualHours.toFixed(2) %></td>
+                <td><%= task.estimated !== null ? task.estimated : '-' %></td>
+                <td><%= task.quality !== null ? task.quality + '/5' : '-' %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    // Chart.js default styling for dark mode support - Corporate Colors
+    function getChartColors() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      return {
+        text: isDark ? '#f9fafb' : '#111827',
+        grid: isDark ? '#374151' : '#e5e7eb',
+        primary: isDark ? '#d64550' : '#B4252D',      // Corporate Red
+        secondary: isDark ? '#3d8eb3' : '#057196',    // Corporate Blue
+        success: isDark ? '#22c55e' : '#16a34a',      // Olive Green
+        warning: isDark ? '#e9a03a' : '#D38428',      // Corporate Gold
+        danger: isDark ? '#d64550' : '#872E24',       // Corporate Maroon
+        info: isDark ? '#3d8eb3' : '#057196'          // Corporate Blue
+      };
+    }
+
+    Chart.defaults.color = getChartColors().text;
+    Chart.defaults.borderColor = getChartColors().grid;
+
+    let charts = {};
+
+    async function loadCharts() {
+      const colors = getChartColors();
+
+      // Task Status Chart (Doughnut)
+      try {
+        const statusRes = await fetch('/api/tfs/charts/task-status');
+        const statusData = await statusRes.json();
+
+        charts.status = new Chart(document.getElementById('taskStatusChart'), {
+          type: 'doughnut',
+          data: {
+            labels: statusData.labels,
+            datasets: [{
+              data: statusData.data,
+              backgroundColor: [colors.warning, colors.secondary, colors.success],
+              borderWidth: 0,
+              hoverOffset: 8
+            }]
+          },
+          options: {
+            responsive: true,
+            cutout: '60%',
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {
+                  padding: 16,
+                  usePointStyle: true,
+                  pointStyle: 'circle'
+                }
+              }
+            }
+          }
+        });
+      } catch (e) { console.error('Status chart error:', e); }
+
+      // Quality Distribution Chart (Bar)
+      try {
+        const qualityRes = await fetch('/api/tfs/charts/quality-distribution');
+        const qualityData = await qualityRes.json();
+
+        charts.quality = new Chart(document.getElementById('qualityChart'), {
+          type: 'bar',
+          data: {
+            labels: qualityData.labels,
+            datasets: [{
+              label: 'Tasks',
+              data: qualityData.data,
+              backgroundColor: [colors.danger, colors.warning, colors.secondary, colors.success, colors.primary],
+              borderRadius: 6,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1 },
+                grid: { color: colors.grid }
+              },
+              x: {
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      } catch (e) { console.error('Quality chart error:', e); }
+
+      // Hours by Developer Chart (Horizontal Bar)
+      try {
+        const devRes = await fetch('/api/tfs/charts/hours-by-developer');
+        const devData = await devRes.json();
+
+        charts.developer = new Chart(document.getElementById('developerChart'), {
+          type: 'bar',
+          data: {
+            labels: devData.labels,
+            datasets: [{
+              label: 'Hours',
+              data: devData.data,
+              backgroundColor: colors.secondary,
+              borderRadius: 4,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                grid: { color: colors.grid }
+              },
+              y: {
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      } catch (e) { console.error('Developer chart error:', e); }
+
+      // Estimated vs Actual Chart (Bar comparison)
+      try {
+        const accRes = await fetch('/api/tfs/charts/estimate-accuracy');
+        const accData = await accRes.json();
+
+        charts.accuracy = new Chart(document.getElementById('accuracyChart'), {
+          type: 'bar',
+          data: {
+            labels: accData.labels,
+            datasets: [
+              {
+                label: 'Estimated',
+                data: accData.estimated,
+                backgroundColor: colors.primary,
+                borderRadius: 4,
+                borderSkipped: false
+              },
+              {
+                label: 'Actual',
+                data: accData.actual,
+                backgroundColor: colors.success,
+                borderRadius: 4,
+                borderSkipped: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {
+                  padding: 16,
+                  usePointStyle: true,
+                  pointStyle: 'circle'
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: { color: colors.grid }
+              },
+              x: {
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      } catch (e) { console.error('Accuracy chart error:', e); }
+    }
+
+    // Observe theme changes and update charts
+    function updateChartsForTheme() {
+      const colors = getChartColors();
+      Chart.defaults.color = colors.text;
+      Chart.defaults.borderColor = colors.grid;
+
+      // Destroy and recreate charts with new colors
+      Object.values(charts).forEach(chart => chart?.destroy());
+      charts = {};
+      loadCharts();
+    }
+
+    // Watch for theme attribute changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'data-theme') {
+          updateChartsForTheme();
+        }
+      });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadCharts();
+      observer.observe(document.documentElement, { attributes: true });
+    });
+  </script>
+</body>
+</html>
