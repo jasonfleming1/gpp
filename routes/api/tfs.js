@@ -142,7 +142,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
     }
 
     const parser = new ExcelParser(excelPath);
-    parser.load();
+    await parser.load();
 
     const mergedData = parser.getMergedData();
     let imported = 0;

@@ -1,4 +1,4 @@
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 const path = require('path');
 
 class ExcelParser {
@@ -7,18 +7,45 @@ class ExcelParser {
     this.workbook = null;
   }
 
-  load() {
-    this.workbook = XLSX.readFile(this.filePath);
+  async load() {
+    this.workbook = new ExcelJS.Workbook();
+    await this.workbook.xlsx.readFile(this.filePath);
     return this;
   }
 
   getSheetNames() {
-    return this.workbook.SheetNames;
+    return this.workbook.worksheets.map(ws => ws.name);
   }
 
   parseSheet(sheetName) {
-    const sheet = this.workbook.Sheets[sheetName];
-    return XLSX.utils.sheet_to_json(sheet);
+    const sheet = this.workbook.getWorksheet(sheetName);
+    if (!sheet) return [];
+
+    const rows = [];
+    const headers = [];
+
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) {
+        // First row is headers
+        row.eachCell((cell, colNumber) => {
+          headers[colNumber] = cell.value;
+        });
+      } else {
+        // Data rows
+        const rowData = {};
+        row.eachCell((cell, colNumber) => {
+          const header = headers[colNumber];
+          if (header) {
+            rowData[header] = cell.value;
+          }
+        });
+        if (Object.keys(rowData).length > 0) {
+          rows.push(rowData);
+        }
+      }
+    });
+
+    return rows;
   }
 
   // Activity codes to skip (non-work entries)
