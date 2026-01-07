@@ -233,9 +233,10 @@
           html += '<td>' + (task.estimated !== null ? task.estimated : '<span class="badge warning">Missing</span>') + '</td>';
           html += '<td class="' + varianceClass + '">' + variance + '</td>';
           html += '<td>' + (task.quality !== null ? task.quality + '/5' : '<span class="badge info">Missing</span>') + '</td>';
-          html += '<td>';
+          html += '<td class="actions-cell">';
           html += '<button class="btn btn-sm btn-primary" onclick="editTask(' + task.tfsId + ')">Edit</button> ';
-          html += '<a href="/tasks/' + task.tfsId + '" class="btn btn-sm btn-secondary">Details</a>';
+          html += '<a href="/tasks/' + task.tfsId + '" class="btn btn-sm btn-secondary">Details</a> ';
+          html += '<button class="btn btn-sm btn-danger" onclick="deleteTask(' + task.tfsId + ')">Delete</button>';
           html += '</td></tr>';
         });
 
@@ -346,7 +347,7 @@
               }
             });
             devHtml += '</select>';
-            devHtml += '<span class="dev-hours">' + d.hours + ' hrs</span>';
+            devHtml += '<input type="number" class="dev-hours-input" data-index="' + i + '" data-original="' + d.hours + '" value="' + d.hours + '" step="0.25" min="0"> hrs';
             devHtml += '</div>';
           });
           devHtml += '</div>';
@@ -454,6 +455,28 @@
       editingTfsId = null;
     }
 
+    async function deleteTask(tfsId) {
+      if (!confirm('Are you sure you want to delete task ' + tfsId + '? This action cannot be undone.')) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/tfs/' + tfsId, {
+          method: 'DELETE'
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to delete');
+        }
+
+        loadTasks();
+        alertManager.showAlert('Task ' + tfsId + ' deleted successfully', 'success');
+      } catch (error) {
+        alertManager.showAlert('Error deleting task: ' + error.message, 'error');
+      }
+    }
+
     async function saveTask() {
       const newTfsId = parseInt(document.getElementById('tfsIdInput').value);
       const title = document.getElementById('titleInput').value;
@@ -498,6 +521,20 @@
             }
           });
 
+          // Collect developer hours changes from input elements
+          const devHoursInputs = document.querySelectorAll('.dev-hours-input');
+          const developerHours = [];
+          devHoursInputs.forEach(input => {
+            const originalHours = parseFloat(input.dataset.original);
+            const newHours = parseFloat(input.value);
+            if (originalHours !== newHours) {
+              developerHours.push({
+                index: parseInt(input.dataset.index),
+                hours: newHours
+              });
+            }
+          });
+
           res = await fetch('/api/tfs/' + originalTfsId, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -507,6 +544,7 @@
               estimated,
               quality,
               developerNames,
+              developerHours,
               mergeWithExisting: existingTaskData !== null
             })
           });

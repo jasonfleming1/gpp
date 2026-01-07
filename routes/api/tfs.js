@@ -550,7 +550,7 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const originalId = parseInt(req.params.id);
-    const { tfsId, title, application, estimated, quality, developerNames, mergeWithExisting } = req.body;
+    const { tfsId, title, application, estimated, quality, developerNames, developerHours, mergeWithExisting } = req.body;
     const newTfsId = tfsId ? parseInt(tfsId) : originalId;
 
     const task = await TfsTask.findOne({ tfsId: originalId });
@@ -654,8 +654,71 @@ router.put('/:id', async (req, res) => {
       task.recalculateTotals();
     }
 
+    // Update developer hours in time entries
+    if (developerHours && developerHours.length > 0 && task.timeEntries.length > 0) {
+      // Get unique developers in order
+      const devMap = new Map();
+      task.timeEntries.forEach(entry => {
+        const key = `${entry.firstName} ${entry.lastName}`;
+        if (!devMap.has(key)) {
+          devMap.set(key, { totalHours: 0, entries: [] });
+        }
+        devMap.get(key).totalHours += entry.workHrs;
+        devMap.get(key).entries.push(entry);
+      });
+      const uniqueDevs = Array.from(devMap.keys());
+
+      // Apply hours changes - distribute proportionally across entries
+      developerHours.forEach(({ index, hours }) => {
+        if (index >= 0 && index < uniqueDevs.length && hours >= 0) {
+          const devName = uniqueDevs[index];
+          const devData = devMap.get(devName);
+          const oldTotal = devData.totalHours;
+
+          if (oldTotal > 0) {
+            // Distribute new hours proportionally
+            const ratio = hours / oldTotal;
+            devData.entries.forEach(entry => {
+              entry.workHrs = Math.round(entry.workHrs * ratio * 100) / 100;
+            });
+          } else if (devData.entries.length > 0) {
+            // If old total was 0, distribute evenly
+            const perEntry = hours / devData.entries.length;
+            devData.entries.forEach(entry => {
+              entry.workHrs = Math.round(perEntry * 100) / 100;
+            });
+          }
+        }
+      });
+
+      // Recalculate totals
+      task.recalculateTotals();
+    }
+
     await task.save();
     res.json(task);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/tfs/:id - Delete a single task
+router.delete('/:id', async (req, res) => {
+  try {
+    const tfsId = parseInt(req.params.id);
+    const task = await TfsTask.findOne({ tfsId });
+
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    await TfsTask.deleteOne({ tfsId });
+
+    res.json({
+      success: true,
+      message: `Task ${tfsId} deleted successfully`,
+      deletedId: tfsId
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
