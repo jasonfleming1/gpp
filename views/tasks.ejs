@@ -64,19 +64,21 @@
     <div class="tasks-page">
       <div class="page-header">
         <h1>ASD Tasks</h1>
+      </div>
+
+      <div class="toolbar">
+        <div class="filters">
+          <a href="/tasks" class="filter-btn <%= filter === 'all' ? 'active' : '' %>">All</a>
+          <a href="/tasks?filter=needsEstimate" class="filter-btn <%= filter === 'needsEstimate' ? 'active' : '' %>">Needs Estimate</a>
+          <a href="/tasks?filter=needsQuality" class="filter-btn <%= filter === 'needsQuality' ? 'active' : '' %>">Needs Quality</a>
+          <a href="/tasks?filter=complete" class="filter-btn <%= filter === 'complete' ? 'active' : '' %>">Complete</a>
+          <a href="/tasks?filter=noActual" class="filter-btn <%= filter === 'noActual' ? 'active' : '' %>">No Developer/Actual</a>
+        </div>
         <div class="search-bar">
           <input type="text" id="searchInput" placeholder="Search by ASD ID, title, or developer..." value="<%= search %>">
           <button id="searchBtn" class="btn btn-primary">Search</button>
           <button id="createBtn" class="btn btn-success" onclick="createTask()">+ Create</button>
         </div>
-      </div>
-
-      <div class="filters">
-        <a href="/tasks" class="filter-btn <%= filter === 'all' ? 'active' : '' %>">All</a>
-        <a href="/tasks?filter=needsEstimate" class="filter-btn <%= filter === 'needsEstimate' ? 'active' : '' %>">Needs Estimate</a>
-        <a href="/tasks?filter=needsQuality" class="filter-btn <%= filter === 'needsQuality' ? 'active' : '' %>">Needs Quality</a>
-        <a href="/tasks?filter=complete" class="filter-btn <%= filter === 'complete' ? 'active' : '' %>">Complete</a>
-        <a href="/tasks?filter=noActual" class="filter-btn <%= filter === 'noActual' ? 'active' : '' %>">No Developer/Actual</a>
       </div>
 
       <div id="rowCounter" class="row-counter"></div>
@@ -111,6 +113,10 @@
                 <input type="number" id="estimatedInput" step="0.25" min="0" placeholder="Enter estimate">
               </div>
               <div class="form-group">
+                <label for="actualHoursInput">Actual Hours</label>
+                <input type="number" id="actualHoursInput" step="0.25" min="0" placeholder="Enter actual hours">
+              </div>
+              <div class="form-group">
                 <label for="qualityInput">Quality Score (1-5)</label>
                 <select id="qualityInput">
                   <option value="">Select score...</option>
@@ -123,7 +129,11 @@
               </div>
             </div>
             <div class="modal-col">
-              <div id="developerBreakdown" class="developer-breakdown"></div>
+              <div class="developer-breakdown">
+                <h3>Developers</h3>
+                <div id="developerList" class="dev-edit-list"></div>
+                <button type="button" class="btn btn-sm btn-secondary" id="addDevBtn" onclick="addDeveloperRow()" style="margin-top: var(--space-2);">+ Add Developer</button>
+              </div>
             </div>
           </div>
         </div>
@@ -285,6 +295,33 @@
     // Load developers on page load
     loadAllDevelopers();
 
+    let devRowIndex = 0;
+
+    function addDeveloperRow(name = '', hours = '') {
+      const container = document.getElementById('developerList');
+      const rowIndex = devRowIndex++;
+
+      let optionsHtml = '<option value="">Select developer...</option>';
+      allDevelopers.forEach(dev => {
+        const devName = dev.firstName + ' ' + dev.lastName;
+        const selected = devName === name ? ' selected' : '';
+        optionsHtml += '<option value="' + devName + '"' + selected + '>' + devName + '</option>';
+      });
+
+      const rowHtml = '<div class="dev-edit-row" data-row="' + rowIndex + '">' +
+        '<select class="dev-name-select" data-row="' + rowIndex + '">' + optionsHtml + '</select>' +
+        '<input type="number" class="dev-hours-input" data-row="' + rowIndex + '" value="' + hours + '" step="0.25" min="0" placeholder="Hours">' +
+        '<button type="button" class="btn btn-sm btn-danger" onclick="removeDeveloperRow(' + rowIndex + ')">X</button>' +
+        '</div>';
+
+      container.insertAdjacentHTML('beforeend', rowHtml);
+    }
+
+    function removeDeveloperRow(rowIndex) {
+      const row = document.querySelector('.dev-edit-row[data-row="' + rowIndex + '"]');
+      if (row) row.remove();
+    }
+
     function createTask() {
       isCreateMode = true;
       editingTfsId = null;
@@ -296,8 +333,10 @@
       document.getElementById('tfsIdInput').value = '';
       document.getElementById('titleInput').value = '';
       document.getElementById('estimatedInput').value = '';
+      document.getElementById('actualHoursInput').value = '';
       document.getElementById('qualityInput').value = '';
-      document.getElementById('developerBreakdown').innerHTML = '<p class="no-entries">No developers yet (will be added from time entries)</p>';
+      document.getElementById('developerList').innerHTML = '';
+      devRowIndex = 0;
 
       // Add ID check listener
       const idInput = document.getElementById('tfsIdInput');
@@ -330,30 +369,16 @@
         document.getElementById('tfsIdInput').value = tfsId;
         document.getElementById('titleInput').value = task.title || '';
         document.getElementById('estimatedInput').value = task.estimated || '';
+        document.getElementById('actualHoursInput').value = task.totalActualHours || '';
         document.getElementById('qualityInput').value = task.quality || '';
 
-        const devContainer = document.getElementById('developerBreakdown');
+        // Clear and populate developer list
+        document.getElementById('developerList').innerHTML = '';
+        devRowIndex = 0;
         if (devData.developers && devData.developers.length > 0) {
-          let devHtml = '<h3>Developers (Total: ' + devData.totalHours.toFixed(2) + ' hrs)</h3>';
-          devHtml += '<div class="dev-edit-list">';
-          devData.developers.forEach((d, i) => {
-            devHtml += '<div class="dev-edit-row">';
-            devHtml += '<select class="dev-name-select" data-index="' + i + '" data-original="' + d.name + '">';
-            devHtml += '<option value="' + d.name + '">' + d.name + '</option>';
-            allDevelopers.forEach(dev => {
-              const devName = dev.firstName + ' ' + dev.lastName;
-              if (devName !== d.name) {
-                devHtml += '<option value="' + devName + '">' + devName + '</option>';
-              }
-            });
-            devHtml += '</select>';
-            devHtml += '<input type="number" class="dev-hours-input" data-index="' + i + '" data-original="' + d.hours + '" value="' + d.hours + '" step="0.25" min="0"> hrs';
-            devHtml += '</div>';
+          devData.developers.forEach(d => {
+            addDeveloperRow(d.name, d.hours);
           });
-          devHtml += '</div>';
-          devContainer.innerHTML = devHtml;
-        } else {
-          devContainer.innerHTML = '<p class="no-entries">No time entries recorded</p>';
         }
 
         // Add ID check listener
@@ -481,12 +506,27 @@
       const newTfsId = parseInt(document.getElementById('tfsIdInput').value);
       const title = document.getElementById('titleInput').value;
       const estimated = document.getElementById('estimatedInput').value;
+      const actualHours = document.getElementById('actualHoursInput').value;
       const quality = document.getElementById('qualityInput').value;
 
       if (!newTfsId) {
         alertManager.showAlert('ASD ID is required', 'warning');
         return;
       }
+
+      // Collect all developers from the form
+      const developers = [];
+      const devRows = document.querySelectorAll('.dev-edit-row');
+      devRows.forEach(row => {
+        const select = row.querySelector('.dev-name-select');
+        const input = row.querySelector('.dev-hours-input');
+        if (select && input && select.value) {
+          developers.push({
+            name: select.value,
+            hours: parseFloat(input.value) || 0
+          });
+        }
+      });
 
       try {
         let res;
@@ -500,40 +540,14 @@
               tfsId: newTfsId,
               title,
               estimated: estimated || null,
-              quality: quality || null
+              actualHours: actualHours || null,
+              quality: quality || null,
+              developers
             })
           });
         } else {
           // Edit existing task
           if (!editingTfsId) return;
-
-          // Collect developer name changes from select elements
-          const devNameSelects = document.querySelectorAll('.dev-name-select');
-          const developerNames = [];
-          devNameSelects.forEach(select => {
-            const originalName = select.dataset.original;
-            const newName = select.value;
-            if (originalName !== newName) {
-              developerNames.push({
-                index: parseInt(select.dataset.index),
-                name: newName
-              });
-            }
-          });
-
-          // Collect developer hours changes from input elements
-          const devHoursInputs = document.querySelectorAll('.dev-hours-input');
-          const developerHours = [];
-          devHoursInputs.forEach(input => {
-            const originalHours = parseFloat(input.dataset.original);
-            const newHours = parseFloat(input.value);
-            if (originalHours !== newHours) {
-              developerHours.push({
-                index: parseInt(input.dataset.index),
-                hours: newHours
-              });
-            }
-          });
 
           res = await fetch('/api/tfs/' + originalTfsId, {
             method: 'PUT',
@@ -542,9 +556,9 @@
               tfsId: newTfsId,
               title,
               estimated,
+              actualHours,
               quality,
-              developerNames,
-              developerHours,
+              developers,
               mergeWithExisting: existingTaskData !== null
             })
           });

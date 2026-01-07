@@ -119,7 +119,7 @@ router.get('/', async (req, res) => {
 // POST /api/tfs - Create a new task
 router.post('/', async (req, res) => {
   try {
-    const { tfsId, title, estimated, quality } = req.body;
+    const { tfsId, title, estimated, quality, actualHours, developers } = req.body;
 
     if (!tfsId) {
       return res.status(400).json({ error: 'ASD ID is required' });
@@ -131,14 +131,47 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'A task with this ASD ID already exists' });
     }
 
+    // Build time entries and developer breakdown from developers array
+    const timeEntries = [];
+    const developerBreakdown = {};
+    let totalActualHours = 0;
+
+    if (developers && Array.isArray(developers)) {
+      developers.forEach(dev => {
+        if (dev.name && dev.hours > 0) {
+          const nameParts = dev.name.split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || '';
+
+          timeEntries.push({
+            timekeeperNumber: 0,
+            firstName,
+            lastName,
+            title: '',
+            workDate: new Date(),
+            workHrs: dev.hours,
+            narrative: 'Manually entered',
+            activityCode: '',
+            activityCodeDesc: ''
+          });
+
+          developerBreakdown[dev.name] = dev.hours;
+          totalActualHours += dev.hours;
+        }
+      });
+    }
+
+    // Use provided actualHours or sum from developers
+    const finalActualHours = actualHours ? parseFloat(actualHours) : totalActualHours;
+
     const task = await TfsTask.create({
       tfsId: parseInt(tfsId),
       title: title?.trim() || null,
       estimated: estimated ? parseFloat(estimated) : null,
       quality: quality ? parseInt(quality) : null,
-      timeEntries: [],
-      totalActualHours: 0,
-      developerBreakdown: {}
+      timeEntries,
+      totalActualHours: finalActualHours,
+      developerBreakdown
     });
 
     res.status(201).json(task);
@@ -550,7 +583,7 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const originalId = parseInt(req.params.id);
-    const { tfsId, title, application, estimated, quality, developerNames, developerHours, mergeWithExisting } = req.body;
+    const { tfsId, title, application, estimated, quality, actualHours, developers, mergeWithExisting } = req.body;
     const newTfsId = tfsId ? parseInt(tfsId) : originalId;
 
     const task = await TfsTask.findOne({ tfsId: originalId });
@@ -619,80 +652,41 @@ router.put('/:id', async (req, res) => {
       task.quality = quality === '' || quality === null ? null : parseInt(quality);
     }
 
-    // Update developer names in time entries
-    if (developerNames && developerNames.length > 0 && task.timeEntries.length > 0) {
-      // Get unique developers in order
-      const devMap = new Map();
-      task.timeEntries.forEach(entry => {
-        const key = `${entry.firstName} ${entry.lastName}`;
-        if (!devMap.has(key)) {
-          devMap.set(key, { firstName: entry.firstName, lastName: entry.lastName });
-        }
-      });
-      const uniqueDevs = Array.from(devMap.keys());
+    // Update developers - replace time entries and breakdown with new developer data
+    if (developers && Array.isArray(developers)) {
+      const timeEntries = [];
+      const developerBreakdown = {};
+      let totalActualHours = 0;
 
-      // Apply name changes
-      developerNames.forEach(({ index, name }) => {
-        if (index >= 0 && index < uniqueDevs.length && name) {
-          const oldName = uniqueDevs[index];
-          const nameParts = name.split(' ');
-          const newFirstName = nameParts[0] || '';
-          const newLastName = nameParts.slice(1).join(' ') || '';
+      developers.forEach(dev => {
+        if (dev.name && dev.hours > 0) {
+          const nameParts = dev.name.split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || '';
 
-          // Update all time entries with this developer
-          task.timeEntries.forEach(entry => {
-            const entryName = `${entry.firstName} ${entry.lastName}`;
-            if (entryName === oldName) {
-              entry.firstName = newFirstName;
-              entry.lastName = newLastName;
-            }
+          timeEntries.push({
+            timekeeperNumber: 0,
+            firstName,
+            lastName,
+            title: '',
+            workDate: new Date(),
+            workHrs: dev.hours,
+            narrative: 'Manually entered',
+            activityCode: '',
+            activityCodeDesc: ''
           });
+
+          developerBreakdown[dev.name] = dev.hours;
+          totalActualHours += dev.hours;
         }
       });
 
-      // Recalculate developer breakdown
-      task.recalculateTotals();
-    }
-
-    // Update developer hours in time entries
-    if (developerHours && developerHours.length > 0 && task.timeEntries.length > 0) {
-      // Get unique developers in order
-      const devMap = new Map();
-      task.timeEntries.forEach(entry => {
-        const key = `${entry.firstName} ${entry.lastName}`;
-        if (!devMap.has(key)) {
-          devMap.set(key, { totalHours: 0, entries: [] });
-        }
-        devMap.get(key).totalHours += entry.workHrs;
-        devMap.get(key).entries.push(entry);
-      });
-      const uniqueDevs = Array.from(devMap.keys());
-
-      // Apply hours changes - distribute proportionally across entries
-      developerHours.forEach(({ index, hours }) => {
-        if (index >= 0 && index < uniqueDevs.length && hours >= 0) {
-          const devName = uniqueDevs[index];
-          const devData = devMap.get(devName);
-          const oldTotal = devData.totalHours;
-
-          if (oldTotal > 0) {
-            // Distribute new hours proportionally
-            const ratio = hours / oldTotal;
-            devData.entries.forEach(entry => {
-              entry.workHrs = Math.round(entry.workHrs * ratio * 100) / 100;
-            });
-          } else if (devData.entries.length > 0) {
-            // If old total was 0, distribute evenly
-            const perEntry = hours / devData.entries.length;
-            devData.entries.forEach(entry => {
-              entry.workHrs = Math.round(perEntry * 100) / 100;
-            });
-          }
-        }
-      });
-
-      // Recalculate totals
-      task.recalculateTotals();
+      task.timeEntries = timeEntries;
+      task.developerBreakdown = developerBreakdown;
+      task.totalActualHours = actualHours ? parseFloat(actualHours) : totalActualHours;
+    } else if (actualHours !== undefined) {
+      // Update just actualHours if no developers provided
+      task.totalActualHours = actualHours === '' || actualHours === null ? 0 : parseFloat(actualHours);
     }
 
     await task.save();

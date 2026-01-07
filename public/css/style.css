@@ -1544,3 +1544,51 @@ textarea:focus-visible {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-bg);
 }
+
+/* Developer row with remove button */
+.dev-edit-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.dev-edit-row .btn-danger {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+/* Toolbar - filters and search in same row */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.toolbar .filters {
+  margin-bottom: 0;
+}
+
+.toolbar .search-bar {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .toolbar .filters {
+    justify-content: center;
+  }
+  
+  .toolbar .search-bar {
+    justify-content: center;
+  }
+}
