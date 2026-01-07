@@ -1,4 +1,39 @@
 // ============================================
+// LENIS SMOOTH SCROLLING
+// ============================================
+
+let lenis;
+
+function initLenis() {
+  if (typeof Lenis === 'undefined') return;
+
+  lenis = new Lenis({
+    duration: 1.2,
+    easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+    orientation: 'vertical',
+    gestureOrientation: 'vertical',
+    smoothWheel: true,
+    wheelMultiplier: 1,
+    touchMultiplier: 2,
+    infinite: false,
+  });
+
+  function raf(time) {
+    lenis.raf(time);
+    requestAnimationFrame(raf);
+  }
+
+  requestAnimationFrame(raf);
+}
+
+// Initialize Lenis on load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initLenis);
+} else {
+  initLenis();
+}
+
+// ============================================
 // ALERT MANAGER - Modal-based notifications
 // ============================================
 

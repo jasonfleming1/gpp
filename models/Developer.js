@@ -26,6 +26,14 @@ const developerSchema = new mongoose.Schema({
   taskCount: {
     type: Number,
     default: 0
+  },
+  taskCountWithoutId: {
+    type: Number,
+    default: 0
+  },
+  hoursWithoutId: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

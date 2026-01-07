@@ -99,7 +99,10 @@ tfsTaskSchema.statics.getSummaryStats = async function() {
         tasksWithQuality: { $sum: { $cond: [{ $ne: ['$quality', null] }, 1, 0] } },
         totalEstimatedHours: { $sum: { $ifNull: ['$estimated', 0] } },
         totalActualHours: { $sum: '$totalActualHours' },
-        avgQuality: { $avg: '$quality' }
+        avgQuality: { $avg: '$quality' },
+        totalAdminHours: {
+          $sum: { $cond: [{ $eq: ['$tfsId', 7300] }, '$totalActualHours', 0] }
+        }
       }
     }
   ]);
@@ -109,7 +112,8 @@ tfsTaskSchema.statics.getSummaryStats = async function() {
     tasksWithQuality: 0,
     totalEstimatedHours: 0,
     totalActualHours: 0,
-    avgQuality: null
+    avgQuality: null,
+    totalAdminHours: 0
   };
 };
 

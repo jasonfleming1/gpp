@@ -103,11 +103,13 @@ class ExcelParser {
       // Try to extract TFS ID first, fall back to MatterNumber
       let taskId = this.extractTfsId(row.TimecardNarrative);
       let title = '';
+      let tfsIdNotEntered = false;
 
       if (!taskId) {
         // Use MatterNumber as the task ID for non-TFS entries
         taskId = row.MatterNumber;
         title = row.MatterName || '';
+        tfsIdNotEntered = true;
       }
 
       if (!taskId) return;
@@ -116,6 +118,7 @@ class ExcelParser {
         taskMap.set(taskId, {
           tfsId: taskId,
           title,
+          tfsIdNotEntered,
           timeEntries: [],
           totalActualHours: 0,
           developerBreakdown: new Map()

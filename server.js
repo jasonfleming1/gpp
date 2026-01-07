@@ -25,6 +25,17 @@ const pageRoutes = require('./routes/pages');
 app.use('/api/tfs', tfsApiRoutes);
 app.use('/', pageRoutes);
 
+// Developers API
+const Developer = require('./models/Developer');
+app.get('/api/developers', async (req, res) => {
+  try {
+    const developers = await Developer.find().sort({ lastName: 1, firstName: 1 }).lean();
+    res.json(developers);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

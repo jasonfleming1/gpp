@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= title %></title>
   <link rel="stylesheet" href="/css/style.css">
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script>
+    // Prevent theme flash - set before body renders
+    (function() {
+      const saved = localStorage.getItem('theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
 </head>
 <body>
   <nav class="navbar">
@@ -55,6 +67,7 @@
         <div class="search-bar">
           <input type="text" id="searchInput" placeholder="Search by ASD ID, title, or developer..." value="<%= search %>">
           <button id="searchBtn" class="btn btn-primary">Search</button>
+          <button id="createBtn" class="btn btn-success" onclick="createTask()">+ Create</button>
         </div>
       </div>
 
@@ -63,7 +76,10 @@
         <a href="/tasks?filter=needsEstimate" class="filter-btn <%= filter === 'needsEstimate' ? 'active' : '' %>">Needs Estimate</a>
         <a href="/tasks?filter=needsQuality" class="filter-btn <%= filter === 'needsQuality' ? 'active' : '' %>">Needs Quality</a>
         <a href="/tasks?filter=complete" class="filter-btn <%= filter === 'complete' ? 'active' : '' %>">Complete</a>
+        <a href="/tasks?filter=noActual" class="filter-btn <%= filter === 'noActual' ? 'active' : '' %>">No Developer/Actual</a>
       </div>
+
+      <div id="rowCounter" class="row-counter"></div>
 
       <div id="tasksContainer">
         <div class="loading">Loading tasks...</div>
@@ -73,32 +89,43 @@
     </div>
 
     <div id="editModal" class="modal hidden">
-      <div class="modal-content">
+      <div class="modal-content modal-wide">
         <div class="modal-header">
-          <h2>Edit ASD Task <span id="modalTfsId"></span></h2>
+          <h2 id="modalTitle">Edit ASD Task</h2>
           <button class="modal-close" onclick="closeModal()">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="form-group">
-            <label for="titleInput">Title</label>
-            <input type="text" id="titleInput" placeholder="Enter task title">
+          <div class="modal-grid">
+            <div class="modal-col">
+              <div class="form-group">
+                <label for="tfsIdInput">ASD ID</label>
+                <input type="number" id="tfsIdInput" placeholder="Enter ASD ID">
+                <div id="idCheckResult" class="id-check-result"></div>
+              </div>
+              <div class="form-group">
+                <label for="titleInput">Title</label>
+                <input type="text" id="titleInput" placeholder="Enter task title">
+              </div>
+              <div class="form-group">
+                <label for="estimatedInput">Estimated Hours</label>
+                <input type="number" id="estimatedInput" step="0.25" min="0" placeholder="Enter estimate">
+              </div>
+              <div class="form-group">
+                <label for="qualityInput">Quality Score (1-5)</label>
+                <select id="qualityInput">
+                  <option value="">Select score...</option>
+                  <option value="1">1 - Poor</option>
+                  <option value="2">2 - Below Average</option>
+                  <option value="3">3 - Average</option>
+                  <option value="4">4 - Good</option>
+                  <option value="5">5 - Excellent</option>
+                </select>
+              </div>
+            </div>
+            <div class="modal-col">
+              <div id="developerBreakdown" class="developer-breakdown"></div>
+            </div>
           </div>
-          <div class="form-group">
-            <label for="estimatedInput">Estimated Hours</label>
-            <input type="number" id="estimatedInput" step="0.25" min="0" placeholder="Enter estimate">
-          </div>
-          <div class="form-group">
-            <label for="qualityInput">Quality Score (1-5)</label>
-            <select id="qualityInput">
-              <option value="">Select score...</option>
-              <option value="1">1 - Poor</option>
-              <option value="2">2 - Below Average</option>
-              <option value="3">3 - Average</option>
-              <option value="4">4 - Good</option>
-              <option value="5">5 - Excellent</option>
-            </select>
-          </div>
-          <div id="developerBreakdown" class="developer-breakdown"></div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -162,6 +189,11 @@
 
         const res = await fetch(url);
         const data = await res.json();
+
+        // Show row counter
+        document.getElementById('rowCounter').innerHTML =
+          '<strong>' + data.pagination.total + '</strong> tasks found' +
+          (data.pagination.pages > 1 ? ' (showing ' + data.tasks.length + ' on page ' + data.pagination.page + ')' : '');
 
         if (data.tasks.length === 0) {
           container.innerHTML = '<div class="empty-state">No tasks found</div>';
@@ -232,9 +264,59 @@
       loadTasks();
     }
 
+    let originalTfsId = null;
+    let existingTaskData = null;
+    let allDevelopers = [];
+    let isCreateMode = false;
+
+    // Load all developers for combobox
+    async function loadAllDevelopers() {
+      try {
+        const res = await fetch('/api/developers');
+        if (res.ok) {
+          allDevelopers = await res.json();
+        }
+      } catch (e) {
+        console.error('Failed to load developers:', e);
+      }
+    }
+
+    // Load developers on page load
+    loadAllDevelopers();
+
+    function createTask() {
+      isCreateMode = true;
+      editingTfsId = null;
+      originalTfsId = null;
+      existingTaskData = null;
+
+      document.getElementById('modalTitle').textContent = 'Create ASD Task';
+      document.getElementById('idCheckResult').innerHTML = '';
+      document.getElementById('tfsIdInput').value = '';
+      document.getElementById('titleInput').value = '';
+      document.getElementById('estimatedInput').value = '';
+      document.getElementById('qualityInput').value = '';
+      document.getElementById('developerBreakdown').innerHTML = '<p class="no-entries">No developers yet (will be added from time entries)</p>';
+
+      // Add ID check listener
+      const idInput = document.getElementById('tfsIdInput');
+      idInput.onchange = checkExistingId;
+      idInput.onblur = checkExistingId;
+
+      const modal = document.getElementById('editModal');
+      modal.classList.remove('hidden');
+
+      setupFocusTrap(modal);
+      setTimeout(() => document.getElementById('tfsIdInput').focus(), 100);
+    }
+
     async function editTask(tfsId) {
+      isCreateMode = false;
       editingTfsId = tfsId;
-      document.getElementById('modalTfsId').textContent = tfsId;
+      originalTfsId = tfsId;
+      existingTaskData = null;
+      document.getElementById('modalTitle').textContent = 'Edit ASD Task';
+      document.getElementById('idCheckResult').innerHTML = '';
 
       try {
         const [taskRes, devRes] = await Promise.all([
@@ -244,54 +326,202 @@
         const task = await taskRes.json();
         const devData = await devRes.json();
 
+        document.getElementById('tfsIdInput').value = tfsId;
         document.getElementById('titleInput').value = task.title || '';
         document.getElementById('estimatedInput').value = task.estimated || '';
         document.getElementById('qualityInput').value = task.quality || '';
 
         const devContainer = document.getElementById('developerBreakdown');
         if (devData.developers && devData.developers.length > 0) {
-          let devHtml = '<h3>Developer Hours (Total: ' + devData.totalHours.toFixed(2) + ')</h3>';
-          devHtml += '<ul class="dev-list">';
-          devData.developers.forEach(d => {
-            devHtml += '<li>' + d.name + ': <strong>' + d.hours + ' hrs</strong></li>';
+          let devHtml = '<h3>Developers (Total: ' + devData.totalHours.toFixed(2) + ' hrs)</h3>';
+          devHtml += '<div class="dev-edit-list">';
+          devData.developers.forEach((d, i) => {
+            devHtml += '<div class="dev-edit-row">';
+            devHtml += '<select class="dev-name-select" data-index="' + i + '" data-original="' + d.name + '">';
+            devHtml += '<option value="' + d.name + '">' + d.name + '</option>';
+            allDevelopers.forEach(dev => {
+              const devName = dev.firstName + ' ' + dev.lastName;
+              if (devName !== d.name) {
+                devHtml += '<option value="' + devName + '">' + devName + '</option>';
+              }
+            });
+            devHtml += '</select>';
+            devHtml += '<span class="dev-hours">' + d.hours + ' hrs</span>';
+            devHtml += '</div>';
           });
-          devHtml += '</ul>';
+          devHtml += '</div>';
           devContainer.innerHTML = devHtml;
         } else {
-          devContainer.innerHTML = '<p>No time entries recorded</p>';
+          devContainer.innerHTML = '<p class="no-entries">No time entries recorded</p>';
         }
 
-        document.getElementById('editModal').classList.remove('hidden');
+        // Add ID check listener
+        const idInput = document.getElementById('tfsIdInput');
+        idInput.onchange = checkExistingId;
+        idInput.onblur = checkExistingId;
+
+        const modal = document.getElementById('editModal');
+        modal.classList.remove('hidden');
+
+        // Focus trap and initial focus
+        setupFocusTrap(modal);
+        setTimeout(() => document.getElementById('tfsIdInput').focus(), 100);
       } catch (error) {
         alert('Error loading task: ' + error.message);
       }
     }
 
+    // Focus trap for modal - stored handler for cleanup
+    let focusTrapHandler = null;
+
+    function setupFocusTrap(modal) {
+      // Remove previous handler if exists
+      if (focusTrapHandler) {
+        modal.removeEventListener('keydown', focusTrapHandler);
+      }
+
+      focusTrapHandler = function(e) {
+        if (e.key === 'Escape') {
+          closeModal();
+          return;
+        }
+        if (e.key !== 'Tab') return;
+
+        const focusableElements = modal.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement.focus();
+          }
+        }
+      };
+
+      modal.addEventListener('keydown', focusTrapHandler);
+    }
+
+    function removeFocusTrap(modal) {
+      if (focusTrapHandler) {
+        modal.removeEventListener('keydown', focusTrapHandler);
+        focusTrapHandler = null;
+      }
+    }
+
+    async function checkExistingId() {
+      const newId = parseInt(document.getElementById('tfsIdInput').value);
+      const resultDiv = document.getElementById('idCheckResult');
+
+      if (!newId || newId === originalTfsId) {
+        resultDiv.innerHTML = '';
+        existingTaskData = null;
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/tfs/' + newId);
+        if (res.ok) {
+          const existing = await res.json();
+          existingTaskData = existing;
+          resultDiv.innerHTML = '<div class="id-exists">' +
+            '<strong>ID ' + newId + ' exists!</strong><br>' +
+            'Title: ' + (existing.title || 'Untitled') + '<br>' +
+            'Actual: ' + existing.totalActualHours.toFixed(2) + ' hrs, Est: ' + (existing.estimated || 'N/A') + '<br>' +
+            '<em>Saving will merge: sum actual & estimated hours</em>' +
+            '</div>';
+        } else {
+          resultDiv.innerHTML = '<div class="id-available">ID ' + newId + ' is available</div>';
+          existingTaskData = null;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = '';
+        existingTaskData = null;
+      }
+    }
+
     function closeModal() {
-      document.getElementById('editModal').classList.add('hidden');
+      const modal = document.getElementById('editModal');
+      modal.classList.add('hidden');
+      removeFocusTrap(modal);
       editingTfsId = null;
     }
 
     async function saveTask() {
-      if (!editingTfsId) return;
-
+      const newTfsId = parseInt(document.getElementById('tfsIdInput').value);
       const title = document.getElementById('titleInput').value;
       const estimated = document.getElementById('estimatedInput').value;
       const quality = document.getElementById('qualityInput').value;
 
-      try {
-        const res = await fetch('/api/tfs/' + editingTfsId, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, estimated, quality })
-        });
+      if (!newTfsId) {
+        alertManager.showAlert('ASD ID is required', 'warning');
+        return;
+      }
 
-        if (!res.ok) throw new Error('Failed to save');
+      try {
+        let res;
+
+        if (isCreateMode) {
+          // Create new task
+          res = await fetch('/api/tfs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tfsId: newTfsId,
+              title,
+              estimated: estimated || null,
+              quality: quality || null
+            })
+          });
+        } else {
+          // Edit existing task
+          if (!editingTfsId) return;
+
+          // Collect developer name changes from select elements
+          const devNameSelects = document.querySelectorAll('.dev-name-select');
+          const developerNames = [];
+          devNameSelects.forEach(select => {
+            const originalName = select.dataset.original;
+            const newName = select.value;
+            if (originalName !== newName) {
+              developerNames.push({
+                index: parseInt(select.dataset.index),
+                name: newName
+              });
+            }
+          });
+
+          res = await fetch('/api/tfs/' + originalTfsId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tfsId: newTfsId,
+              title,
+              estimated,
+              quality,
+              developerNames,
+              mergeWithExisting: existingTaskData !== null
+            })
+          });
+        }
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to save');
+        }
 
         closeModal();
         loadTasks();
+        alertManager.showAlert(isCreateMode ? 'Task created successfully' : 'Task saved successfully', 'success');
       } catch (error) {
-        alert('Error saving: ' + error.message);
+        alertManager.showAlert('Error saving: ' + error.message, 'error');
       }
     }
   </script>

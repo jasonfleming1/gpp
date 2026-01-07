@@ -6,6 +6,18 @@
   <title><%= title %></title>
   <link rel="stylesheet" href="/css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script>
+    // Prevent theme flash - set before body renders
+    (function() {
+      const saved = localStorage.getItem('theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
 </head>
 <body>
   <nav class="navbar">
@@ -137,7 +149,7 @@
         document.getElementById('scorecardContent').style.display = 'block';
         renderDeveloperCards(data.developers);
         renderComparisonCharts(data.developers);
-        renderQuarterlyChart(data.developers, data.quarters);
+        renderQuarterlyChart(data.developers, data.quarters, data.teamAdminHoursByQuarter);
       } catch (error) {
         console.error('Failed to load scorecard:', error);
         document.getElementById('loadingState').innerHTML =
@@ -200,15 +212,29 @@
           type: 'line',
           data: {
             labels: quarters,
-            datasets: [{
-              data: quarters.map(q => dev.quarterlyHours[q] || 0),
-              borderColor: chartColors[index % chartColors.length],
-              backgroundColor: chartColors[index % chartColors.length] + '20',
-              fill: true,
-              tension: 0.4,
-              pointRadius: 0,
-              borderWidth: 2
-            }]
+            datasets: [
+              {
+                label: 'Total Hours',
+                data: quarters.map(q => dev.quarterlyHours[q] || 0),
+                borderColor: chartColors[index % chartColors.length],
+                backgroundColor: chartColors[index % chartColors.length] + '20',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                borderWidth: 2
+              },
+              {
+                label: 'Admin Hours',
+                data: quarters.map(q => dev.quarterlyAdminHours?.[q] || 0),
+                borderColor: '#999',
+                backgroundColor: '#99999920',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                borderWidth: 2,
+                borderDash: [4, 2]
+              }
+            ]
           },
           options: {
             responsive: true,
@@ -297,7 +323,7 @@
       });
     }
 
-    function renderQuarterlyChart(developers, quarters) {
+    function renderQuarterlyChart(developers, quarters, teamAdminHoursByQuarter) {
       const colors = getChartColors();
       const top5 = developers.slice(0, 5);
 
@@ -312,6 +338,20 @@
         pointHoverRadius: 6,
         borderWidth: 3
       }));
+
+      // Add team admin hours trend line
+      datasets.push({
+        label: 'Team Admin (7300)',
+        data: quarters.map(q => teamAdminHoursByQuarter?.[q] || 0),
+        borderColor: '#666',
+        backgroundColor: '#66666620',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 3,
+        borderDash: [6, 3]
+      });
 
       charts.quarterly = new Chart(document.getElementById('quarterlyChart'), {
         type: 'line',
@@ -360,7 +400,7 @@
           charts = {};
           if (scorecardData) {
             renderComparisonCharts(scorecardData.developers);
-            renderQuarterlyChart(scorecardData.developers, scorecardData.quarters);
+            renderQuarterlyChart(scorecardData.developers, scorecardData.quarters, scorecardData.teamAdminHoursByQuarter);
           }
         }
       });

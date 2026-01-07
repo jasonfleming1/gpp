@@ -82,6 +82,13 @@ router.get('/', async (req, res) => {
     } else if (filter === 'complete') {
       query.estimated = { $ne: null, $exists: true };
       query.quality = { $ne: null, $exists: true };
+    } else if (filter === 'noActual') {
+      query.$or = [
+        { totalActualHours: { $eq: 0 } },
+        { totalActualHours: { $exists: false } },
+        { timeEntries: { $size: 0 } },
+        { timeEntries: { $exists: false } }
+      ];
     }
 
     const sort = {};
@@ -104,6 +111,37 @@ router.get('/', async (req, res) => {
       tasks: tasksWithDevs,
       pagination: { page, limit, total, pages: Math.ceil(total / limit) }
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/tfs - Create a new task
+router.post('/', async (req, res) => {
+  try {
+    const { tfsId, title, estimated, quality } = req.body;
+
+    if (!tfsId) {
+      return res.status(400).json({ error: 'ASD ID is required' });
+    }
+
+    // Check if task already exists
+    const existing = await TfsTask.findOne({ tfsId: parseInt(tfsId) });
+    if (existing) {
+      return res.status(400).json({ error: 'A task with this ASD ID already exists' });
+    }
+
+    const task = await TfsTask.create({
+      tfsId: parseInt(tfsId),
+      title: title?.trim() || null,
+      estimated: estimated ? parseFloat(estimated) : null,
+      quality: quality ? parseInt(quality) : null,
+      timeEntries: [],
+      totalActualHours: 0,
+      developerBreakdown: {}
+    });
+
+    res.status(201).json(task);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -150,6 +188,11 @@ router.post('/import', upload.single('file'), async (req, res) => {
     const developerMap = new Map();
 
     for (const taskData of mergedData) {
+      // Check if Miriah Pooler has entries on this task
+      const hasMiriahPooler = taskData.timeEntries.some(
+        entry => entry.firstName === 'Miriah' && entry.lastName === 'Pooler'
+      );
+
       for (const entry of taskData.timeEntries) {
         const key = entry.timekeeperNumber;
         if (!developerMap.has(key)) {
@@ -159,19 +202,54 @@ router.post('/import', upload.single('file'), async (req, res) => {
             lastName: entry.lastName,
             title: entry.title,
             totalHours: 0,
-            taskIds: new Set()
+            taskIds: new Set(),
+            taskIdsWithoutId: new Set(),
+            hoursWithoutId: 0
           });
         }
         const dev = developerMap.get(key);
         dev.totalHours += entry.workHrs;
         dev.taskIds.add(taskData.tfsId);
+
+        // Track tasks/hours where TFS ID was not entered
+        if (taskData.tfsIdNotEntered) {
+          dev.taskIdsWithoutId.add(taskData.tfsId);
+          dev.hoursWithoutId += entry.workHrs;
+        }
+      }
+
+      // Apply Miriah Pooler defaults: quality=4, estimated=actual
+      let taskQuality = taskData.quality;
+      let taskEstimated = taskData.estimated;
+      if (hasMiriahPooler) {
+        if (taskQuality === null || taskQuality === undefined) {
+          taskQuality = 4;
+        }
+        if (taskEstimated === null || taskEstimated === undefined) {
+          taskEstimated = taskData.totalActualHours;
+        }
+      }
+
+      // Mark title if TFS ID was not entered
+      let taskTitle = taskData.title;
+      if (taskData.tfsIdNotEntered && !taskTitle?.includes('[TFS ID Not Entered]')) {
+        taskTitle = taskTitle ? `${taskTitle} [TFS ID Not Entered]` : '[TFS ID Not Entered]';
       }
 
       const existingTask = await TfsTask.findOne({ tfsId: taskData.tfsId });
 
       if (existingTask) {
         existingTask.timeEntries = taskData.timeEntries;
-        existingTask.title = taskData.title || existingTask.title;
+        existingTask.title = taskTitle || existingTask.title;
+        // Apply Miriah Pooler defaults on update too
+        if (hasMiriahPooler) {
+          if (existingTask.quality === null || existingTask.quality === undefined) {
+            existingTask.quality = 4;
+          }
+          if (existingTask.estimated === null || existingTask.estimated === undefined) {
+            existingTask.estimated = taskData.totalActualHours;
+          }
+        }
         existingTask.recalculateTotals();
         await existingTask.save();
         updated++;
@@ -183,9 +261,9 @@ router.post('/import', upload.single('file'), async (req, res) => {
 
         await TfsTask.create({
           tfsId: taskData.tfsId,
-          title: taskData.title,
-          estimated: taskData.estimated,
-          quality: taskData.quality,
+          title: taskTitle,
+          estimated: taskEstimated,
+          quality: taskQuality,
           timeEntries: taskData.timeEntries,
           totalActualHours: taskData.totalActualHours,
           developerBreakdown
@@ -202,7 +280,9 @@ router.post('/import', upload.single('file'), async (req, res) => {
           lastName: dev.lastName,
           title: dev.title,
           totalHours: dev.totalHours,
-          taskCount: dev.taskIds.size
+          taskCount: dev.taskIds.size,
+          taskCountWithoutId: dev.taskIdsWithoutId.size,
+          hoursWithoutId: dev.hoursWithoutId
         },
         { upsert: true, new: true }
       );
@@ -264,13 +344,20 @@ router.get('/developers/scorecard', async (req, res) => {
               taskCount: 0,
               qualitySum: 0,
               qualityCount: 0,
-              quarterlyHours: {}
+              quarterlyHours: {},
+              quarterlyAdminHours: {},
+              adminHours: 0
             });
           }
 
           const dev = devStats.get(name);
           dev.totalHours += hours;
           dev.taskCount += 1;
+
+          // Track admin hours (tfsId 7300)
+          if (task.tfsId === 7300) {
+            dev.adminHours += hours;
+          }
 
           if (task.quality !== null && task.quality !== undefined) {
             dev.qualitySum += task.quality;
@@ -285,6 +372,11 @@ router.get('/developers/scorecard', async (req, res) => {
                 const date = new Date(entry.workDate);
                 const quarter = `Q${Math.ceil((date.getMonth() + 1) / 3)} ${date.getFullYear()}`;
                 dev.quarterlyHours[quarter] = (dev.quarterlyHours[quarter] || 0) + entry.workHrs;
+
+                // Track quarterly admin hours (tfsId 7300)
+                if (task.tfsId === 7300) {
+                  dev.quarterlyAdminHours[quarter] = (dev.quarterlyAdminHours[quarter] || 0) + entry.workHrs;
+                }
               }
             }
           }
@@ -292,14 +384,25 @@ router.get('/developers/scorecard', async (req, res) => {
       }
     }
 
+    // Get developer records for hoursWithoutId stats
+    const devRecords = await Developer.find().lean();
+    const devRecordMap = new Map(devRecords.map(d => [`${d.firstName} ${d.lastName}`, d]));
+
     // Convert to array and calculate averages
-    const developers = Array.from(devStats.values()).map(dev => ({
-      name: dev.name,
-      totalHours: Math.round(dev.totalHours * 100) / 100,
-      taskCount: dev.taskCount,
-      avgQuality: dev.qualityCount > 0 ? Math.round((dev.qualitySum / dev.qualityCount) * 100) / 100 : null,
-      quarterlyHours: dev.quarterlyHours
-    }));
+    const developers = Array.from(devStats.values()).map(dev => {
+      const devRecord = devRecordMap.get(dev.name);
+      return {
+        name: dev.name,
+        totalHours: Math.round(dev.totalHours * 100) / 100,
+        taskCount: dev.taskCount,
+        avgQuality: dev.qualityCount > 0 ? Math.round((dev.qualitySum / dev.qualityCount) * 100) / 100 : null,
+        quarterlyHours: dev.quarterlyHours,
+        quarterlyAdminHours: dev.quarterlyAdminHours,
+        taskCountWithoutId: devRecord?.taskCountWithoutId || 0,
+        hoursWithoutId: Math.round((devRecord?.hoursWithoutId || 0) * 100) / 100,
+        adminHours: Math.round(dev.adminHours * 100) / 100
+      };
+    });
 
     // Sort by total hours descending
     developers.sort((a, b) => b.totalHours - a.totalHours);
@@ -315,9 +418,20 @@ router.get('/developers/scorecard', async (req, res) => {
       return (parseInt(ya) * 4 + parseInt(qa)) - (parseInt(yb) * 4 + parseInt(qb));
     });
 
+    // Calculate total team admin hours per quarter
+    const teamAdminHoursByQuarter = {};
+    developers.forEach(dev => {
+      if (dev.quarterlyAdminHours) {
+        Object.entries(dev.quarterlyAdminHours).forEach(([quarter, hours]) => {
+          teamAdminHoursByQuarter[quarter] = (teamAdminHoursByQuarter[quarter] || 0) + hours;
+        });
+      }
+    });
+
     res.json({
       developers,
-      quarters: sortedQuarters
+      quarters: sortedQuarters,
+      teamAdminHoursByQuarter
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -432,35 +546,115 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PUT /api/tfs/:id - Update title, application, estimate and quality
+// PUT /api/tfs/:id - Update task including ID change, merge, and developer names
 router.put('/:id', async (req, res) => {
   try {
-    const { title, application, estimated, quality } = req.body;
-    const updateData = {};
+    const originalId = parseInt(req.params.id);
+    const { tfsId, title, application, estimated, quality, developerNames, mergeWithExisting } = req.body;
+    const newTfsId = tfsId ? parseInt(tfsId) : originalId;
 
-    if (title !== undefined) {
-      updateData.title = title.trim() || null;
-    }
-    if (application !== undefined) {
-      updateData.application = application.trim() || null;
-    }
-    if (estimated !== undefined) {
-      updateData.estimated = estimated === '' || estimated === null ? null : parseFloat(estimated);
-    }
-    if (quality !== undefined) {
-      updateData.quality = quality === '' || quality === null ? null : parseInt(quality);
-    }
-
-    const task = await TfsTask.findOneAndUpdate(
-      { tfsId: parseInt(req.params.id) },
-      updateData,
-      { new: true, runValidators: true }
-    );
-
+    const task = await TfsTask.findOne({ tfsId: originalId });
     if (!task) {
       return res.status(404).json({ error: 'TFS task not found' });
     }
 
+    // Handle ID change with potential merge
+    if (newTfsId !== originalId) {
+      const existingTarget = await TfsTask.findOne({ tfsId: newTfsId });
+
+      if (existingTarget && mergeWithExisting) {
+        // Merge tasks: combine time entries, sum hours, keep best estimates
+        existingTarget.timeEntries = [...existingTarget.timeEntries, ...task.timeEntries];
+        existingTarget.totalActualHours += task.totalActualHours;
+
+        // Sum or take the new estimated value
+        if (estimated !== undefined && estimated !== '' && estimated !== null) {
+          const newEst = parseFloat(estimated);
+          existingTarget.estimated = existingTarget.estimated !== null
+            ? existingTarget.estimated + newEst
+            : newEst;
+        } else if (task.estimated !== null) {
+          existingTarget.estimated = existingTarget.estimated !== null
+            ? existingTarget.estimated + task.estimated
+            : task.estimated;
+        }
+
+        // Use provided quality or keep existing
+        if (quality !== undefined && quality !== '' && quality !== null) {
+          existingTarget.quality = parseInt(quality);
+        }
+
+        // Update title if provided
+        if (title !== undefined && title.trim()) {
+          existingTarget.title = title.trim();
+        }
+
+        // Recalculate developer breakdown
+        existingTarget.recalculateTotals();
+        await existingTarget.save();
+
+        // Delete the original task
+        await TfsTask.deleteOne({ tfsId: originalId });
+
+        return res.json(existingTarget);
+      } else if (existingTarget) {
+        return res.status(400).json({ error: 'Target ID already exists. Enable merge to combine tasks.' });
+      } else {
+        // Just change the ID
+        task.tfsId = newTfsId;
+      }
+    }
+
+    // Update basic fields
+    if (title !== undefined) {
+      task.title = title.trim() || null;
+    }
+    if (application !== undefined) {
+      task.application = application.trim() || null;
+    }
+    if (estimated !== undefined) {
+      task.estimated = estimated === '' || estimated === null ? null : parseFloat(estimated);
+    }
+    if (quality !== undefined) {
+      task.quality = quality === '' || quality === null ? null : parseInt(quality);
+    }
+
+    // Update developer names in time entries
+    if (developerNames && developerNames.length > 0 && task.timeEntries.length > 0) {
+      // Get unique developers in order
+      const devMap = new Map();
+      task.timeEntries.forEach(entry => {
+        const key = `${entry.firstName} ${entry.lastName}`;
+        if (!devMap.has(key)) {
+          devMap.set(key, { firstName: entry.firstName, lastName: entry.lastName });
+        }
+      });
+      const uniqueDevs = Array.from(devMap.keys());
+
+      // Apply name changes
+      developerNames.forEach(({ index, name }) => {
+        if (index >= 0 && index < uniqueDevs.length && name) {
+          const oldName = uniqueDevs[index];
+          const nameParts = name.split(' ');
+          const newFirstName = nameParts[0] || '';
+          const newLastName = nameParts.slice(1).join(' ') || '';
+
+          // Update all time entries with this developer
+          task.timeEntries.forEach(entry => {
+            const entryName = `${entry.firstName} ${entry.lastName}`;
+            if (entryName === oldName) {
+              entry.firstName = newFirstName;
+              entry.lastName = newLastName;
+            }
+          });
+        }
+      });
+
+      // Recalculate developer breakdown
+      task.recalculateTotals();
+    }
+
+    await task.save();
     res.json(task);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -470,15 +664,16 @@ router.put('/:id', async (req, res) => {
 // GET /api/tfs/:id/developers - Get developer breakdown
 router.get('/:id/developers', async (req, res) => {
   try {
-    const task = await TfsTask.findOne({ tfsId: parseInt(req.params.id) });
+    const task = await TfsTask.findOne({ tfsId: parseInt(req.params.id) }).lean();
     if (!task) {
       return res.status(404).json({ error: 'TFS task not found' });
     }
 
     const breakdown = [];
     if (task.developerBreakdown) {
-      task.developerBreakdown.forEach((hours, name) => {
-        breakdown.push({ name, hours: hours.toFixed(2) });
+      // developerBreakdown is stored as an object, not a Map
+      Object.entries(task.developerBreakdown).forEach(([name, hours]) => {
+        breakdown.push({ name, hours: parseFloat(hours).toFixed(2) });
       });
     }
 
@@ -486,7 +681,7 @@ router.get('/:id/developers', async (req, res) => {
 
     res.json({
       tfsId: task.tfsId,
-      totalHours: task.totalActualHours,
+      totalHours: task.totalActualHours || 0,
       developers: breakdown
     });
   } catch (error) {
