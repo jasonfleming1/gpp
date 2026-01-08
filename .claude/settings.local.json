@@ -3,7 +3,9 @@
     "allow": [
       "Bash(cat:*)",
       "Bash(git checkout:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(findstr:*)",
+      "Bash(node:*)"
     ]
   }
 }

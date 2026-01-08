@@ -562,6 +562,137 @@ router.get('/charts/task-status', async (req, res) => {
   }
 });
 
+
+// ============================================
+// EXPORT ROUTES
+// ============================================
+
+// GET /api/tfs/export/xlsx - Export tasks to Excel file
+router.get('/export/xlsx', async (req, res) => {
+  try {
+    const ExcelJS = require('exceljs');
+
+    // Get filter parameters (same as main list)
+    const search = req.query.search || '';
+    const filter = req.query.filter || 'all';
+
+    let query = {};
+
+    if (search) {
+      const searchNum = parseInt(search);
+      const searchRegex = { $regex: search, $options: 'i' };
+      if (!isNaN(searchNum)) {
+        query.$or = [
+          { tfsId: searchNum },
+          { title: searchRegex },
+          { 'timeEntries.firstName': searchRegex },
+          { 'timeEntries.lastName': searchRegex }
+        ];
+      } else {
+        query.$or = [
+          { title: searchRegex },
+          { 'timeEntries.firstName': searchRegex },
+          { 'timeEntries.lastName': searchRegex }
+        ];
+      }
+    }
+
+    if (filter === 'needsEstimate') {
+      query.$and = [
+        { $or: [{ estimated: null }, { estimated: { $exists: false } }] },
+        { totalActualHours: { $gt: 0 } }
+      ];
+    } else if (filter === 'needsQuality') {
+      query.$and = [
+        { $or: [{ quality: null }, { quality: { $exists: false } }] },
+        { totalActualHours: { $gt: 0 } }
+      ];
+    } else if (filter === 'complete') {
+      query.estimated = { $ne: null, $exists: true };
+      query.quality = { $ne: null, $exists: true };
+    } else if (filter === 'noActual') {
+      query.$or = [
+        { totalActualHours: { $eq: 0 } },
+        { totalActualHours: { $exists: false } },
+        { timeEntries: { $size: 0 } },
+        { timeEntries: { $exists: false } }
+      ];
+    }
+
+    const tasks = await TfsTask.find(query).sort({ tfsId: 1 }).lean();
+
+    // Create workbook
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'ASD Time Tracker';
+    workbook.created = new Date();
+
+    const worksheet = workbook.addWorksheet('Tasks');
+
+    // Define columns
+    worksheet.columns = [
+      { header: 'ASD ID', key: 'tfsId', width: 12 },
+      { header: 'Title', key: 'title', width: 50 },
+      { header: 'Application', key: 'application', width: 20 },
+      { header: 'Estimated Hours', key: 'estimated', width: 15 },
+      { header: 'Actual Hours', key: 'actual', width: 15 },
+      { header: 'Variance', key: 'variance', width: 12 },
+      { header: 'Variance %', key: 'variancePercent', width: 12 },
+      { header: 'Quality', key: 'quality', width: 10 },
+      { header: 'Developers', key: 'developers', width: 40 }
+    ];
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Add data rows
+    for (const task of tasks) {
+      const variance = task.estimated !== null ? task.estimated - task.totalActualHours : null;
+      const variancePercent = task.estimated !== null && task.estimated !== 0
+        ? ((task.estimated - task.totalActualHours) / task.estimated * 100).toFixed(1) + '%'
+        : null;
+
+      const devNames = task.developerBreakdown
+        ? Object.entries(task.developerBreakdown)
+            .map(([name, hours]) => name + ' (' + hours.toFixed(2) + 'h)')
+            .join(', ')
+        : '';
+
+      worksheet.addRow({
+        tfsId: task.tfsId,
+        title: task.title || '',
+        application: task.application || '',
+        estimated: task.estimated,
+        actual: task.totalActualHours,
+        variance: variance,
+        variancePercent: variancePercent,
+        quality: task.quality,
+        developers: devNames
+      });
+    }
+
+    // Set number formats
+    worksheet.getColumn('estimated').numFmt = '0.00';
+    worksheet.getColumn('actual').numFmt = '0.00';
+    worksheet.getColumn('variance').numFmt = '0.00';
+
+    // Set response headers
+    const filename = 'tasks_export_' + new Date().toISOString().split('T')[0] + '.xlsx';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+
+    // Write to response
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============================================
 // PARAM ROUTES (must be last)
 // ============================================
