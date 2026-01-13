@@ -18,6 +18,39 @@
       }
     })();
   </script>
+  <style>
+    .scorecard-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .year-filter {
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      min-width: 120px;
+      cursor: pointer;
+    }
+
+    .year-filter:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 3px rgba(180, 37, 45, 0.15);
+    }
+
+    [data-theme="dark"] .year-filter {
+      background: var(--bg-secondary);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    [data-theme="dark"] .year-filter:focus {
+      box-shadow: 0 0 0 3px rgba(214, 69, 80, 0.2);
+    }
+  </style>
 </head>
 <body>
   <nav class="navbar">
@@ -28,6 +61,7 @@
       <a href="/" class="nav-link">Dashboard</a>
       <a href="/tasks" class="nav-link">Tasks</a>
       <a href="/scorecard" class="nav-link">Scorecard</a>
+      <a href="/meetings" class="nav-link">Meetings</a>
       <button id="importBtn" class="btn btn-primary">Import Data</button>
       <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
       <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
@@ -65,7 +99,12 @@
     <div class="scorecard-page">
       <div class="scorecard-header">
         <h1>Developer Scorecard</h1>
-        <a href="/" class="btn btn-secondary">Back to Dashboard</a>
+        <div class="scorecard-controls">
+          <select id="yearFilter" class="year-filter">
+            <option value="">All Years</option>
+          </select>
+          <a href="/" class="btn btn-secondary">Back to Dashboard</a>
+        </div>
       </div>
 
       <div id="loadingState" class="loading">
@@ -132,10 +171,41 @@
 
     let charts = {};
     let scorecardData = null;
+    let currentYear = '';
+
+    // Load available years on page load
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadYears();
+      loadScorecard();
+
+      document.getElementById('yearFilter').addEventListener('change', (e) => {
+        currentYear = e.target.value;
+        loadScorecard();
+      });
+    });
+
+    async function loadYears() {
+      try {
+        const res = await fetch('/api/tfs/years');
+        const years = await res.json();
+        const select = document.getElementById('yearFilter');
+        years.forEach(year => {
+          const option = document.createElement('option');
+          option.value = year;
+          option.textContent = year;
+          select.appendChild(option);
+        });
+      } catch (e) {
+        console.error('Failed to load years:', e);
+      }
+    }
 
     async function loadScorecard() {
       try {
-        const res = await fetch('/api/tfs/developers/scorecard');
+        let url = '/api/tfs/developers/scorecard';
+        if (currentYear) url += '?year=' + currentYear;
+
+        const res = await fetch(url);
         const data = await res.json();
         scorecardData = data;
 
@@ -405,11 +475,7 @@
         }
       });
     });
-
-    document.addEventListener('DOMContentLoaded', () => {
-      loadScorecard();
-      observer.observe(document.documentElement, { attributes: true });
-    });
+    observer.observe(document.documentElement, { attributes: true });
   </script>
 </body>
 </html>

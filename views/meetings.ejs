@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script>
+    (function() {
+      const saved = localStorage.getItem('theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <style>
+    /* Wide Modal with Two-Column Layout */
+    .modal-meeting .modal-content {
+      max-width: 700px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.15),
+        0 0 50px rgba(180, 37, 45, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    [data-theme="dark"] .modal-meeting .modal-content {
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.4),
+        0 0 60px rgba(214, 69, 80, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .modal-meeting .modal-header {
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      color: white;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: var(--space-5) var(--space-6);
+    }
+
+    .modal-meeting .modal-header h2 {
+      color: white;
+    }
+
+    .modal-meeting .modal-close {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .modal-meeting .modal-close:hover {
+      color: white;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .modal-grid-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-6);
+    }
+
+    .modal-col-left,
+    .modal-col-right {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-col-right .form-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-col-right textarea {
+      flex: 1;
+      min-height: 180px;
+      resize: vertical;
+    }
+
+    @media (max-width: 600px) {
+      .modal-grid-layout {
+        grid-template-columns: 1fr;
+      }
+      .modal-meeting .modal-content {
+        max-width: 95%;
+      }
+    }
+
+    /* Date Input Theme Support */
+    input[type="date"] {
+      color-scheme: light;
+    }
+
+    [data-theme="dark"] input[type="date"] {
+      color-scheme: dark;
+    }
+
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: none;
+      opacity: 0.7;
+      cursor: pointer;
+    }
+
+    [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+    }
+
+    input[type="date"]::-webkit-calendar-picker-indicator:hover {
+      opacity: 1;
+    }
+
+    /* Form inputs glow on focus */
+    .modal-meeting input:focus,
+    .modal-meeting select:focus,
+    .modal-meeting textarea:focus {
+      box-shadow:
+        0 0 0 3px rgba(180, 37, 45, 0.15),
+        0 0 20px rgba(180, 37, 45, 0.1);
+    }
+
+    [data-theme="dark"] .modal-meeting input:focus,
+    [data-theme="dark"] .modal-meeting select:focus,
+    [data-theme="dark"] .modal-meeting textarea:focus {
+      box-shadow:
+        0 0 0 3px rgba(214, 69, 80, 0.2),
+        0 0 25px rgba(214, 69, 80, 0.15);
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/">ASD Time Tracker</a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/" class="nav-link">Dashboard</a>
+      <a href="/tasks" class="nav-link">Tasks</a>
+      <a href="/scorecard" class="nav-link">Scorecard</a>
+      <a href="/meetings" class="nav-link">Meetings</a>
+      <button id="importBtn" class="btn btn-primary">Import Data</button>
+      <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
+      <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
+    </div>
+  </nav>
+
+  <!-- Import Modal -->
+  <div id="importModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Import Data</h2>
+        <button class="modal-close" onclick="closeImportModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="fileInput">Select Excel File (.xlsx)</label>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" class="file-input">
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="clearDataCheckbox">
+            Clear existing data before import
+          </label>
+          <p class="help-text warning">Warning: This will delete all existing tasks, estimates, and quality scores.</p>
+        </div>
+        <p class="help-text">Select a timekeeping Excel file with '3e' and 'scorebyTFS' sheets.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+        <button class="btn btn-primary" id="doImportBtn" onclick="doImport()">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Meeting Modal -->
+  <div id="meetingModal" class="modal modal-meeting hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Add Meeting</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="meetingForm">
+          <input type="hidden" id="meetingId">
+          <div class="modal-grid-layout">
+            <div class="modal-col-left">
+              <div class="form-group">
+                <label for="meetingDate">Date</label>
+                <input type="date" id="meetingDate" required>
+              </div>
+              <div class="form-group">
+                <label for="meetingType">Meeting Type</label>
+                <select id="meetingType" required>
+                  <option value="">Select type...</option>
+                  <option value="1:1">1:1</option>
+                  <option value="ASD Standup">ASD Standup</option>
+                  <option value="ASD Monthly">ASD Monthly</option>
+                  <option value="Requirements">Requirements</option>
+                  <option value="Leadership">Leadership</option>
+                  <option value="Steering">Steering</option>
+                  <option value="Design">Design</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="meetingEmployee">Employee/Team</label>
+                <select id="meetingEmployee" required>
+                  <option value="">Select employee...</option>
+                  <option value="ASD">ASD</option>
+                  <option value="Kevin Crabb">Kevin Crabb</option>
+                  <option value="Jason Fleming">Jason Fleming</option>
+                  <option value="Miriah Pooler">Miriah Pooler</option>
+                  <option value="Curtis Smith">Curtis Smith</option>
+                  <option value="Claus Michelsen">Claus Michelsen</option>
+                  <option value="Amy Lake">Amy Lake</option>
+                  <option value="Sales">Sales</option>
+                  <option value="Project Team">Project Team</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="meetingDuration">Duration (hours)</label>
+                <input type="number" id="meetingDuration" step="0.25" min="0" required placeholder="e.g., 0.5, 1, 1.5">
+              </div>
+            </div>
+            <div class="modal-col-right">
+              <div class="form-group">
+                <label for="meetingSummary">Summary / Notes</label>
+                <textarea id="meetingSummary" placeholder="Key discussion points, action items, decisions made..."></textarea>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveMeeting()">Save Meeting</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="container">
+    <div class="dashboard">
+      <div class="page-header">
+        <h1>Meetings</h1>
+        <button class="btn btn-primary" onclick="openAddModal()">Add Meeting</button>
+      </div>
+
+      <!-- Loading State -->
+      <div id="loadingState" class="loading">
+        <div class="spinner"></div>
+        <p>Loading meetings...</p>
+      </div>
+
+      <!-- Main Content -->
+      <div id="mainContent" style="display: none;">
+        <!-- Filters -->
+        <div class="toolbar">
+          <div class="filters">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="1:1">1:1</button>
+            <button class="filter-btn" data-filter="ASD Standup">Standup</button>
+            <button class="filter-btn" data-filter="ASD Monthly">Monthly</button>
+            <button class="filter-btn" data-filter="Leadership">Leadership</button>
+          </div>
+          <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search meetings...">
+          </div>
+        </div>
+
+        <!-- Meetings Table -->
+        <div class="recent-tasks">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="date">Date</th>
+                <th class="sortable" data-sort="type">Type</th>
+                <th class="sortable" data-sort="employee">Employee</th>
+                <th class="sortable" data-sort="meetingDuration">Duration</th>
+                <th>Summary</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="meetingsTable">
+            </tbody>
+          </table>
+          <div class="pagination" id="pagination"></div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state" style="display: none;">
+        <h3>No Meetings Yet</h3>
+        <p>Start tracking your meetings by adding your first one.</p>
+        <button class="btn btn-primary" onclick="openAddModal()">Add First Meeting</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    let currentPage = 1;
+    let currentFilter = 'all';
+    let currentSearch = '';
+    let sortField = 'date';
+    let sortOrder = 'desc';
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadMeetings();
+      setupEventListeners();
+    });
+
+    function setupEventListeners() {
+      // Filter buttons
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentFilter = btn.dataset.filter;
+          currentPage = 1;
+          loadMeetings();
+        });
+      });
+
+      // Search
+      let searchTimeout;
+      document.getElementById('searchInput').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          currentSearch = e.target.value;
+          currentPage = 1;
+          loadMeetings();
+        }, 300);
+      });
+
+      // Sort headers
+      document.querySelectorAll('.data-table th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+          const field = th.dataset.sort;
+          if (sortField === field) {
+            sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+          } else {
+            sortField = field;
+            sortOrder = 'desc';
+          }
+          document.querySelectorAll('.data-table th.sortable').forEach(h => h.classList.remove('active'));
+          th.classList.add('active');
+          loadMeetings();
+        });
+      });
+    }
+
+    async function loadMeetings() {
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: 25,
+        sortField,
+        sortOrder
+      });
+
+      if (currentFilter !== 'all') params.set('type', currentFilter);
+      if (currentSearch) params.set('search', currentSearch);
+
+      try {
+        const res = await fetch(`/api/meetings?${params}`);
+        const data = await res.json();
+
+        document.getElementById('loadingState').style.display = 'none';
+
+        if (data.pagination.total === 0 && currentFilter === 'all' && !currentSearch) {
+          document.getElementById('emptyState').style.display = 'block';
+          document.getElementById('mainContent').style.display = 'none';
+        } else {
+          document.getElementById('emptyState').style.display = 'none';
+          document.getElementById('mainContent').style.display = 'block';
+          renderMeetingsTable(data.meetings);
+          renderPagination(data.pagination);
+        }
+      } catch (error) {
+        console.error('Failed to load meetings:', error);
+        document.getElementById('loadingState').innerHTML = '<p class="error">Failed to load meetings</p>';
+      }
+    }
+
+    function renderMeetingsTable(meetings) {
+      const tbody = document.getElementById('meetingsTable');
+
+      if (meetings.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No meetings found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = meetings.map(m => {
+        const date = new Date(m.date).toLocaleDateString('en-US', {
+          year: 'numeric', month: 'short', day: 'numeric'
+        });
+        const summary = m.summary ? (m.summary.length > 50 ? m.summary.substring(0, 50) + '...' : m.summary) : '-';
+
+        return `
+          <tr>
+            <td><strong>${date}</strong></td>
+            <td><span class="badge info">${m.type}</span></td>
+            <td>${m.employee}</td>
+            <td>${m.meetingDuration} hrs</td>
+            <td class="truncate">${summary}</td>
+            <td>
+              <button class="btn btn-sm btn-secondary" onclick="editMeeting('${m._id}')">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteMeeting('${m._id}')">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderPagination(pagination) {
+      const container = document.getElementById('pagination');
+      if (pagination.pages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      for (let i = 1; i <= pagination.pages; i++) {
+        html += `<a href="#" class="page-link ${i === pagination.page ? 'active' : ''}" onclick="goToPage(${i}); return false;">${i}</a>`;
+      }
+      container.innerHTML = html;
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      loadMeetings();
+    }
+
+    // Modal functions
+    function openAddModal() {
+      document.getElementById('modalTitle').textContent = 'Add Meeting';
+      document.getElementById('meetingForm').reset();
+      document.getElementById('meetingId').value = '';
+      document.getElementById('meetingDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('meetingModal').classList.remove('hidden');
+    }
+
+    async function editMeeting(id) {
+      try {
+        const res = await fetch(`/api/meetings/${id}`);
+        const meeting = await res.json();
+
+        document.getElementById('modalTitle').textContent = 'Edit Meeting';
+        document.getElementById('meetingId').value = meeting._id;
+        document.getElementById('meetingDate').value = new Date(meeting.date).toISOString().split('T')[0];
+        document.getElementById('meetingType').value = meeting.type;
+        document.getElementById('meetingEmployee').value = meeting.employee;
+        document.getElementById('meetingDuration').value = meeting.meetingDuration;
+        document.getElementById('meetingSummary').value = meeting.summary || '';
+
+        document.getElementById('meetingModal').classList.remove('hidden');
+      } catch (error) {
+        alert('Failed to load meeting: ' + error.message);
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('meetingModal').classList.add('hidden');
+    }
+
+    async function saveMeeting() {
+      const id = document.getElementById('meetingId').value;
+      const data = {
+        date: document.getElementById('meetingDate').value,
+        type: document.getElementById('meetingType').value,
+        employee: document.getElementById('meetingEmployee').value,
+        meetingDuration: parseFloat(document.getElementById('meetingDuration').value),
+        summary: document.getElementById('meetingSummary').value
+      };
+
+      try {
+        const url = id ? `/api/meetings/${id}` : '/api/meetings';
+        const method = id ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+
+        closeModal();
+        loadMeetings();
+      } catch (error) {
+        alert('Failed to save meeting: ' + error.message);
+      }
+    }
+
+    async function deleteMeeting(id) {
+      if (!confirm('Are you sure you want to delete this meeting?')) return;
+
+      try {
+        const res = await fetch(`/api/meetings/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+
+        loadMeetings();
+      } catch (error) {
+        alert('Failed to delete meeting: ' + error.message);
+      }
+    }
+
+    // Import Modal Functions
+    document.getElementById('importBtn').addEventListener('click', () => {
+      document.getElementById('importModal').classList.remove('hidden');
+    });
+
+    function closeImportModal() {
+      document.getElementById('importModal').classList.add('hidden');
+      document.getElementById('fileInput').value = '';
+      document.getElementById('clearDataCheckbox').checked = false;
+    }
+
+    async function doImport() {
+      const fileInput = document.getElementById('fileInput');
+      const clearData = document.getElementById('clearDataCheckbox').checked;
+
+      if (!fileInput.files.length) {
+        alert('Please select a file');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('clearData', clearData.toString());
+
+      const btn = document.getElementById('doImportBtn');
+      btn.disabled = true;
+      btn.textContent = 'Importing...';
+
+      try {
+        const res = await fetch('/api/tfs/import', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Import failed');
+        }
+
+        alert(data.message);
+        closeImportModal();
+        loadMeetings();
+      } catch (error) {
+        alert('Import failed: ' + error.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Import';
+      }
+    }
+
+    // Delete All Function
+    document.getElementById('deleteAllBtn').addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to delete ALL data? This cannot be undone!')) {
+        return;
+      }
+      if (!confirm('This will delete all tasks, developers, and meetings. Are you REALLY sure?')) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/tfs/delete-all', { method: 'POST' });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Delete failed');
+        }
+
+        alert(data.message);
+        loadMeetings();
+      } catch (error) {
+        alert('Delete failed: ' + error.message);
+      }
+    });
+  </script>
+</body>
+</html>

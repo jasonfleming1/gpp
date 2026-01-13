@@ -17,6 +17,254 @@
       }
     })();
   </script>
+  <style>
+    /* Task Modal Styles */
+    .modal-task .modal-content {
+      max-width: 800px;
+      width: 95%;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.15),
+        0 0 50px rgba(180, 37, 45, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    [data-theme="dark"] .modal-task .modal-content {
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.4),
+        0 0 60px rgba(214, 69, 80, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .modal-task .modal-header {
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      color: white;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: var(--space-4) var(--space-6);
+    }
+
+    .modal-task .modal-header h2 {
+      color: white;
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    .modal-task .modal-close {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .modal-task .modal-close:hover {
+      color: white;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .task-modal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-6);
+    }
+
+    .task-modal-left {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+    }
+
+    .form-row .form-group {
+      margin-bottom: 0;
+    }
+
+    .task-modal-right {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      border: 1px solid var(--border-color);
+    }
+
+    [data-theme="dark"] .task-modal-right {
+      background: rgba(0, 0, 0, 0.2);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .developer-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-3);
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .developer-section-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .dev-edit-list {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .dev-edit-row {
+      display: grid;
+      grid-template-columns: 1fr 80px 36px;
+      gap: var(--space-2);
+      align-items: center;
+    }
+
+    .dev-edit-row select,
+    .dev-edit-row input {
+      padding: var(--space-2);
+      font-size: 0.875rem;
+    }
+
+    .dev-edit-row .btn-danger {
+      padding: var(--space-1) var(--space-2);
+      min-width: unset;
+    }
+
+    .dev-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--border-color);
+      font-size: 0.9rem;
+    }
+
+    .dev-total strong {
+      font-size: 1.1rem;
+      color: var(--brand-primary);
+    }
+
+    [data-theme="dark"] .dev-total strong {
+      color: var(--brand-primary-light);
+    }
+
+    .id-check-result {
+      margin-top: calc(var(--space-1) * -1);
+      margin-bottom: var(--space-2);
+    }
+
+    .id-check-result .id-exists {
+      background: rgba(180, 37, 45, 0.1);
+      border: 1px solid var(--brand-primary);
+      border-radius: var(--radius-md);
+      padding: var(--space-2) var(--space-3);
+      font-size: 0.8rem;
+      color: var(--brand-primary);
+    }
+
+    [data-theme="dark"] .id-check-result .id-exists {
+      background: rgba(214, 69, 80, 0.15);
+      color: var(--brand-primary-light);
+    }
+
+    .id-check-result .id-available {
+      color: var(--semantic-success);
+      font-size: 0.8rem;
+      padding: var(--space-1) 0;
+    }
+
+    /* Date Input Theme Support */
+    input[type="date"] {
+      color-scheme: light;
+    }
+
+    [data-theme="dark"] input[type="date"] {
+      color-scheme: dark;
+    }
+
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: none;
+      opacity: 0.7;
+      cursor: pointer;
+    }
+
+    [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+    }
+
+    /* Form inputs glow on focus */
+    .modal-task input:focus,
+    .modal-task select:focus {
+      box-shadow:
+        0 0 0 3px rgba(180, 37, 45, 0.15),
+        0 0 20px rgba(180, 37, 45, 0.1);
+    }
+
+    [data-theme="dark"] .modal-task input:focus,
+    [data-theme="dark"] .modal-task select:focus {
+      box-shadow:
+        0 0 0 3px rgba(214, 69, 80, 0.2),
+        0 0 25px rgba(214, 69, 80, 0.15);
+    }
+
+    /* Readonly actual hours styling */
+    #actualHoursInput[readonly] {
+      background: var(--bg-tertiary);
+      cursor: not-allowed;
+      opacity: 0.8;
+    }
+
+    @media (max-width: 700px) {
+      .task-modal-grid {
+        grid-template-columns: 1fr;
+      }
+      .task-modal-right {
+        max-height: 250px;
+      }
+      .modal-task .modal-content {
+        max-width: 95%;
+      }
+    }
+
+    /* Year Filter Dropdown */
+    .year-filter {
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      min-width: 120px;
+      cursor: pointer;
+    }
+
+    .year-filter:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 3px rgba(180, 37, 45, 0.15);
+    }
+
+    [data-theme="dark"] .year-filter {
+      background: var(--bg-secondary);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    [data-theme="dark"] .year-filter:focus {
+      box-shadow: 0 0 0 3px rgba(214, 69, 80, 0.2);
+    }
+  </style>
 </head>
 <body>
   <nav class="navbar">
@@ -27,6 +275,7 @@
       <a href="/" class="nav-link">Dashboard</a>
       <a href="/tasks" class="nav-link">Tasks</a>
       <a href="/scorecard" class="nav-link">Scorecard</a>
+      <a href="/meetings" class="nav-link">Meetings</a>
       <button id="importBtn" class="btn btn-primary">Import Data</button>
       <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
       <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
@@ -75,6 +324,9 @@
           <a href="/tasks?filter=noActual" class="filter-btn <%= filter === 'noActual' ? 'active' : '' %>">No Developer/Actual</a>
         </div>
         <div class="search-bar">
+          <select id="yearFilter" class="year-filter">
+            <option value="">All Years</option>
+          </select>
           <input type="text" id="searchInput" placeholder="Search by ASD ID, title, or developer..." value="<%= search %>">
           <button id="searchBtn" class="btn btn-primary">Search</button>
           <button id="exportBtn" class="btn btn-secondary" onclick="exportToExcel()">Export</button>
@@ -91,34 +343,43 @@
       <div id="pagination" class="pagination"></div>
     </div>
 
-    <div id="editModal" class="modal hidden">
-      <div class="modal-content modal-wide">
+    <div id="editModal" class="modal modal-task hidden">
+      <div class="modal-content">
         <div class="modal-header">
           <h2 id="modalTitle">Edit ASD Task</h2>
           <button class="modal-close" onclick="closeModal()">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="modal-grid">
-            <div class="modal-col">
-              <div class="form-group">
-                <label for="tfsIdInput">ASD ID</label>
-                <input type="number" id="tfsIdInput" placeholder="Enter ASD ID">
-                <div id="idCheckResult" class="id-check-result"></div>
+          <div class="task-modal-grid">
+            <!-- Left Column: Task Details -->
+            <div class="task-modal-left">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="tfsIdInput">ASD ID</label>
+                  <input type="number" id="tfsIdInput" placeholder="Enter ASD ID">
+                </div>
+                <div class="form-group">
+                  <label for="workDateInput">Work Date</label>
+                  <input type="date" id="workDateInput">
+                </div>
               </div>
+              <div id="idCheckResult" class="id-check-result"></div>
               <div class="form-group">
                 <label for="titleInput">Title</label>
                 <input type="text" id="titleInput" placeholder="Enter task title">
               </div>
-              <div class="form-group">
-                <label for="estimatedInput">Estimated Hours</label>
-                <input type="number" id="estimatedInput" step="0.25" min="0" placeholder="Enter estimate">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="estimatedInput">Estimated Hours</label>
+                  <input type="number" id="estimatedInput" step="0.25" min="0" placeholder="Estimate">
+                </div>
+                <div class="form-group">
+                  <label for="actualHoursInput">Actual Hours</label>
+                  <input type="number" id="actualHoursInput" step="0.25" min="0" placeholder="Actual" readonly>
+                </div>
               </div>
               <div class="form-group">
-                <label for="actualHoursInput">Actual Hours</label>
-                <input type="number" id="actualHoursInput" step="0.25" min="0" placeholder="Enter actual hours">
-              </div>
-              <div class="form-group">
-                <label for="qualityInput">Quality Score (1-5)</label>
+                <label for="qualityInput">Quality Score</label>
                 <select id="qualityInput">
                   <option value="">Select score...</option>
                   <option value="1">1 - Poor</option>
@@ -129,11 +390,16 @@
                 </select>
               </div>
             </div>
-            <div class="modal-col">
-              <div class="developer-breakdown">
+            <!-- Right Column: Developers -->
+            <div class="task-modal-right">
+              <div class="developer-section-header">
                 <h3>Developers</h3>
-                <div id="developerList" class="dev-edit-list"></div>
-                <button type="button" class="btn btn-sm btn-secondary" id="addDevBtn" onclick="addDeveloperRow()" style="margin-top: var(--space-2);">+ Add Developer</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="addDeveloperRow()">+ Add</button>
+              </div>
+              <div id="developerList" class="dev-edit-list"></div>
+              <div class="dev-total">
+                <span>Total Hours:</span>
+                <strong id="devTotalHours">0.00</strong>
               </div>
             </div>
           </div>
@@ -153,6 +419,7 @@
     let currentPage = <%= currentPage %>;
     let currentSortField = 'tfsId';
     let currentSortOrder = 'desc';
+    let currentYear = '';
     let editingTfsId = null;
 
     const columns = [
@@ -167,13 +434,36 @@
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
+      loadYears();
       loadTasks();
 
       document.getElementById('searchBtn').addEventListener('click', doSearch);
       document.getElementById('searchInput').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') doSearch();
       });
+
+      document.getElementById('yearFilter').addEventListener('change', (e) => {
+        currentYear = e.target.value;
+        currentPage = 1;
+        loadTasks();
+      });
     });
+
+    async function loadYears() {
+      try {
+        const res = await fetch('/api/tfs/years');
+        const years = await res.json();
+        const select = document.getElementById('yearFilter');
+        years.forEach(year => {
+          const option = document.createElement('option');
+          option.value = year;
+          option.textContent = year;
+          select.appendChild(option);
+        });
+      } catch (e) {
+        console.error('Failed to load years:', e);
+      }
+    }
 
     function doSearch() {
       const search = document.getElementById('searchInput').value;
@@ -183,6 +473,7 @@
     function exportToExcel() {
       let url = '/api/tfs/export/xlsx?filter=' + currentFilter;
       if (currentSearch) url += '&search=' + encodeURIComponent(currentSearch);
+      if (currentYear) url += '&year=' + currentYear;
       window.location.href = url;
     }
 
@@ -203,6 +494,7 @@
         let url = '/api/tfs?page=' + currentPage + '&filter=' + currentFilter;
         url += '&sortField=' + currentSortField + '&sortOrder=' + currentSortOrder;
         if (currentSearch) url += '&search=' + encodeURIComponent(currentSearch);
+        if (currentYear) url += '&year=' + currentYear;
 
         const res = await fetch(url);
         const data = await res.json();
@@ -317,16 +609,27 @@
 
       const rowHtml = '<div class="dev-edit-row" data-row="' + rowIndex + '">' +
         '<select class="dev-name-select" data-row="' + rowIndex + '">' + optionsHtml + '</select>' +
-        '<input type="number" class="dev-hours-input" data-row="' + rowIndex + '" value="' + hours + '" step="0.25" min="0" placeholder="Hours">' +
+        '<input type="number" class="dev-hours-input" data-row="' + rowIndex + '" value="' + hours + '" step="0.25" min="0" placeholder="Hrs" oninput="updateDevTotal()">' +
         '<button type="button" class="btn btn-sm btn-danger" onclick="removeDeveloperRow(' + rowIndex + ')">X</button>' +
         '</div>';
 
       container.insertAdjacentHTML('beforeend', rowHtml);
+      updateDevTotal();
     }
 
     function removeDeveloperRow(rowIndex) {
       const row = document.querySelector('.dev-edit-row[data-row="' + rowIndex + '"]');
       if (row) row.remove();
+      updateDevTotal();
+    }
+
+    function updateDevTotal() {
+      let total = 0;
+      document.querySelectorAll('.dev-hours-input').forEach(input => {
+        total += parseFloat(input.value) || 0;
+      });
+      document.getElementById('devTotalHours').textContent = total.toFixed(2);
+      document.getElementById('actualHoursInput').value = total.toFixed(2);
     }
 
     function createTask() {
@@ -340,9 +643,11 @@
       document.getElementById('tfsIdInput').value = '';
       document.getElementById('titleInput').value = '';
       document.getElementById('estimatedInput').value = '';
-      document.getElementById('actualHoursInput').value = '';
+      document.getElementById('actualHoursInput').value = '0.00';
       document.getElementById('qualityInput').value = '';
+      document.getElementById('workDateInput').value = new Date().toISOString().split('T')[0];
       document.getElementById('developerList').innerHTML = '';
+      document.getElementById('devTotalHours').textContent = '0.00';
       devRowIndex = 0;
 
       // Add ID check listener
@@ -376,16 +681,28 @@
         document.getElementById('tfsIdInput').value = tfsId;
         document.getElementById('titleInput').value = task.title || '';
         document.getElementById('estimatedInput').value = task.estimated || '';
-        document.getElementById('actualHoursInput').value = task.totalActualHours || '';
         document.getElementById('qualityInput').value = task.quality || '';
+
+        // Get most recent work date from time entries, or default to today
+        let workDate = new Date().toISOString().split('T')[0];
+        if (task.timeEntries && task.timeEntries.length > 0) {
+          const dates = task.timeEntries.map(e => new Date(e.workDate)).sort((a, b) => b - a);
+          workDate = dates[0].toISOString().split('T')[0];
+        }
+        document.getElementById('workDateInput').value = workDate;
 
         // Clear and populate developer list
         document.getElementById('developerList').innerHTML = '';
+        document.getElementById('devTotalHours').textContent = '0.00';
         devRowIndex = 0;
         if (devData.developers && devData.developers.length > 0) {
           devData.developers.forEach(d => {
             addDeveloperRow(d.name, d.hours);
           });
+        } else {
+          // No developers, set actual hours from task
+          document.getElementById('actualHoursInput').value = (task.totalActualHours || 0).toFixed(2);
+          document.getElementById('devTotalHours').textContent = (task.totalActualHours || 0).toFixed(2);
         }
 
         // Add ID check listener
@@ -515,6 +832,7 @@
       const estimated = document.getElementById('estimatedInput').value;
       const actualHours = document.getElementById('actualHoursInput').value;
       const quality = document.getElementById('qualityInput').value;
+      const workDate = document.getElementById('workDateInput').value || new Date().toISOString().split('T')[0];
 
       if (!newTfsId) {
         alertManager.showAlert('ASD ID is required', 'warning');
@@ -549,7 +867,8 @@
               estimated: estimated || null,
               actualHours: actualHours || null,
               quality: quality || null,
-              developers
+              developers,
+              workDate
             })
           });
         } else {
@@ -566,6 +885,7 @@
               actualHours,
               quality,
               developers,
+              workDate,
               mergeWithExisting: existingTaskData !== null
             })
           });

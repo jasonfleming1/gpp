@@ -28,6 +28,7 @@
       <a href="/" class="nav-link">Dashboard</a>
       <a href="/tasks" class="nav-link">Tasks</a>
       <a href="/scorecard" class="nav-link">Scorecard</a>
+      <a href="/meetings" class="nav-link">Meetings</a>
       <button id="importBtn" class="btn btn-primary">Import Data</button>
       <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
       <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
@@ -63,7 +64,12 @@
 
   <main class="container">
     <div class="dashboard">
-      <h1>Dashboard</h1>
+      <div class="dashboard-header">
+        <h1>Dashboard</h1>
+        <select id="yearFilter" class="year-filter">
+          <option value="">All Years</option>
+        </select>
+      </div>
 
       <div class="stats-grid">
         <div class="stat-card">
@@ -121,40 +127,50 @@
         </div>
       </div>
 
-      <div class="quick-actions">
-        <h2>Quick Filters</h2>
-        <div class="action-buttons">
-          <a href="/tasks?filter=needsEstimate" class="btn btn-warning">Needs Estimate</a>
-          <a href="/tasks?filter=needsQuality" class="btn btn-info">Needs Quality Score</a>
-          <a href="/tasks?filter=complete" class="btn btn-success">Complete</a>
-          <a href="/tasks" class="btn btn-secondary">View All</a>
+      <!-- Meeting Stats -->
+      <div class="charts-section">
+        <h2>Meeting Overview</h2>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value"><%= meetingStats.totalMeetings || 0 %></div>
+          <div class="stat-label">Total Meetings</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= (meetingStats.totalDuration || 0).toFixed(1) %></div>
+          <div class="stat-label">Total Meeting Hours</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= (meetingStats.avgDuration || 0).toFixed(2) %></div>
+          <div class="stat-label">Avg Duration (hrs)</div>
+        </div>
+        <div class="stat-card highlight">
+          <div class="stat-value" id="meetingsThisMonth">-</div>
+          <div class="stat-label">Meetings This Month</div>
         </div>
       </div>
 
-      <div class="recent-tasks">
-        <h2>Recently Updated Tasks</h2>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ASD ID</th>
-              <th>Title</th>
-              <th>Actual Hours</th>
-              <th>Estimated</th>
-              <th>Quality</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% recentTasks.forEach(function(task) { %>
-              <tr onclick="window.location='/tasks/<%= task.tfsId %>'" style="cursor:pointer">
-                <td><strong><%= task.tfsId %></strong></td>
-                <td class="truncate"><%= task.title || '-' %></td>
-                <td><%= task.totalActualHours.toFixed(2) %></td>
-                <td><%= task.estimated !== null ? task.estimated : '-' %></td>
-                <td><%= task.quality !== null ? task.quality + '/5' : '-' %></td>
-              </tr>
-            <% }); %>
-          </tbody>
-        </table>
+      <!-- Meeting Charts -->
+      <div class="charts-section">
+        <h2>Meeting Analytics</h2>
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3>Hours by Meeting Type</h3>
+            <canvas id="meetingTypeChart"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Hours by Employee/Team</h3>
+            <canvas id="meetingEmployeeChart"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Monthly Meeting Trend</h3>
+            <canvas id="meetingTrendChart"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Meetings by Day of Week</h3>
+            <canvas id="meetingWeeklyChart"></canvas>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -180,6 +196,37 @@
     Chart.defaults.borderColor = getChartColors().grid;
 
     let charts = {};
+    let currentYear = '';
+
+    // Load years and setup event handlers
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadYears();
+      loadCharts();
+
+      document.getElementById('yearFilter').addEventListener('change', (e) => {
+        currentYear = e.target.value;
+        // Destroy existing charts and reload
+        Object.values(charts).forEach(chart => chart?.destroy());
+        charts = {};
+        loadCharts();
+      });
+    });
+
+    async function loadYears() {
+      try {
+        const res = await fetch('/api/tfs/years');
+        const years = await res.json();
+        const select = document.getElementById('yearFilter');
+        years.forEach(year => {
+          const option = document.createElement('option');
+          option.value = year;
+          option.textContent = year;
+          select.appendChild(option);
+        });
+      } catch (e) {
+        console.error('Failed to load years:', e);
+      }
+    }
 
     async function loadCharts() {
       const colors = getChartColors();
@@ -339,6 +386,172 @@
           }
         });
       } catch (e) { console.error('Accuracy chart error:', e); }
+
+      // Load Meeting Charts
+      await loadMeetingCharts(colors);
+    }
+
+    async function loadMeetingCharts(colors) {
+      // Meetings This Month
+      try {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+        const monthRes = await fetch(`/api/meetings?startDate=${startOfMonth}&endDate=${endOfMonth}&limit=1`);
+        const monthData = await monthRes.json();
+        document.getElementById('meetingsThisMonth').textContent = monthData.pagination?.total || 0;
+      } catch (e) { console.error('Meetings this month error:', e); }
+
+      // Meeting Type Chart (Doughnut)
+      try {
+        const typeRes = await fetch('/api/meetings/charts/by-type');
+        const typeData = await typeRes.json();
+
+        if (typeData.labels.length > 0) {
+          const chartColors = ['#B4252D', '#057196', '#D38428', '#16a34a', '#872E24', '#6366f1', '#ec4899'];
+          charts.meetingType = new Chart(document.getElementById('meetingTypeChart'), {
+            type: 'doughnut',
+            data: {
+              labels: typeData.labels,
+              datasets: [{
+                data: typeData.durations,
+                backgroundColor: chartColors.slice(0, typeData.labels.length),
+                borderWidth: 0,
+                hoverOffset: 8
+              }]
+            },
+            options: {
+              responsive: true,
+              cutout: '60%',
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' }
+                },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => `${ctx.label}: ${ctx.raw} hrs`
+                  }
+                }
+              }
+            }
+          });
+        }
+      } catch (e) { console.error('Meeting type chart error:', e); }
+
+      // Meeting Employee Chart (Horizontal Bar)
+      try {
+        const empRes = await fetch('/api/meetings/charts/by-employee');
+        const empData = await empRes.json();
+
+        if (empData.labels.length > 0) {
+          charts.meetingEmployee = new Chart(document.getElementById('meetingEmployeeChart'), {
+            type: 'bar',
+            data: {
+              labels: empData.labels,
+              datasets: [{
+                label: 'Hours',
+                data: empData.durations,
+                backgroundColor: colors.secondary,
+                borderRadius: 4,
+                borderSkipped: false
+              }]
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { beginAtZero: true, grid: { color: colors.grid } },
+                y: { grid: { display: false } }
+              }
+            }
+          });
+        }
+      } catch (e) { console.error('Meeting employee chart error:', e); }
+
+      // Meeting Monthly Trend Chart (Line)
+      try {
+        const trendRes = await fetch('/api/meetings/charts/monthly-trend');
+        const trendData = await trendRes.json();
+
+        if (trendData.labels.length > 0) {
+          charts.meetingTrend = new Chart(document.getElementById('meetingTrendChart'), {
+            type: 'line',
+            data: {
+              labels: trendData.labels,
+              datasets: [
+                {
+                  label: 'Hours',
+                  data: trendData.durations,
+                  borderColor: colors.primary,
+                  backgroundColor: colors.primary + '20',
+                  fill: true,
+                  tension: 0.4,
+                  pointRadius: 4,
+                  pointHoverRadius: 6
+                },
+                {
+                  label: 'Count',
+                  data: trendData.counts,
+                  borderColor: colors.secondary,
+                  backgroundColor: 'transparent',
+                  tension: 0.4,
+                  pointRadius: 4,
+                  pointHoverRadius: 6,
+                  yAxisID: 'y1'
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              interaction: { mode: 'index', intersect: false },
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' }
+                }
+              },
+              scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, grid: { color: colors.grid }, title: { display: true, text: 'Hours' } },
+                y1: { beginAtZero: true, position: 'right', grid: { display: false }, title: { display: true, text: 'Count' } }
+              }
+            }
+          });
+        }
+      } catch (e) { console.error('Meeting trend chart error:', e); }
+
+      // Meeting Weekly Distribution Chart (Bar)
+      try {
+        const weekRes = await fetch('/api/meetings/charts/weekly-distribution');
+        const weekData = await weekRes.json();
+
+        charts.meetingWeekly = new Chart(document.getElementById('meetingWeeklyChart'), {
+          type: 'bar',
+          data: {
+            labels: weekData.labels,
+            datasets: [{
+              label: 'Hours',
+              data: weekData.durations,
+              backgroundColor: [
+                colors.warning, colors.primary, colors.secondary,
+                colors.success, colors.primary, colors.secondary, colors.warning
+              ],
+              borderRadius: 6,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { display: false } },
+              y: { beginAtZero: true, grid: { color: colors.grid } }
+            }
+          }
+        });
+      } catch (e) { console.error('Meeting weekly chart error:', e); }
     }
 
     // Observe theme changes and update charts
@@ -361,11 +574,7 @@
         }
       });
     });
-
-    document.addEventListener('DOMContentLoaded', () => {
-      loadCharts();
-      observer.observe(document.documentElement, { attributes: true });
-    });
+    observer.observe(document.documentElement, { attributes: true });
   </script>
 </body>
 </html>

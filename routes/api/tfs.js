@@ -47,8 +47,16 @@ router.get('/', async (req, res) => {
     const filter = req.query.filter || 'all';
     const sortField = req.query.sortField || 'tfsId';
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+    const year = req.query.year ? parseInt(req.query.year) : null;
 
     let query = {};
+
+    // Year filter - match tasks with time entries in the specified year
+    if (year) {
+      const startOfYear = new Date(year, 0, 1);
+      const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
+      query['timeEntries.workDate'] = { $gte: startOfYear, $lte: endOfYear };
+    }
 
     if (search) {
       const searchNum = parseInt(search);
@@ -70,15 +78,17 @@ router.get('/', async (req, res) => {
     }
 
     if (filter === 'needsEstimate') {
-      query.$and = [
+      query.$and = query.$and || [];
+      query.$and.push(
         { $or: [{ estimated: null }, { estimated: { $exists: false } }] },
         { totalActualHours: { $gt: 0 } }
-      ];
+      );
     } else if (filter === 'needsQuality') {
-      query.$and = [
+      query.$and = query.$and || [];
+      query.$and.push(
         { $or: [{ quality: null }, { quality: { $exists: false } }] },
         { totalActualHours: { $gt: 0 } }
-      ];
+      );
     } else if (filter === 'complete') {
       query.estimated = { $ne: null, $exists: true };
       query.quality = { $ne: null, $exists: true };
@@ -119,7 +129,7 @@ router.get('/', async (req, res) => {
 // POST /api/tfs - Create a new task
 router.post('/', async (req, res) => {
   try {
-    const { tfsId, title, estimated, quality, actualHours, developers } = req.body;
+    const { tfsId, title, estimated, quality, actualHours, developers, workDate } = req.body;
 
     if (!tfsId) {
       return res.status(400).json({ error: 'ASD ID is required' });
@@ -130,6 +140,9 @@ router.post('/', async (req, res) => {
     if (existing) {
       return res.status(400).json({ error: 'A task with this ASD ID already exists' });
     }
+
+    // Parse work date or default to today
+    const entryDate = workDate ? new Date(workDate) : new Date();
 
     // Build time entries and developer breakdown from developers array
     const timeEntries = [];
@@ -148,7 +161,7 @@ router.post('/', async (req, res) => {
             firstName,
             lastName,
             title: '',
-            workDate: new Date(),
+            workDate: entryDate,
             workHrs: dev.hours,
             narrative: 'Manually entered',
             activityCode: '',
@@ -185,6 +198,20 @@ router.get('/stats', async (req, res) => {
   try {
     const stats = await TfsTask.getSummaryStats();
     res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/tfs/years - Get distinct years from time entries
+router.get('/years', async (req, res) => {
+  try {
+    const years = await TfsTask.aggregate([
+      { $unwind: '$timeEntries' },
+      { $group: { _id: { $year: '$timeEntries.workDate' } } },
+      { $sort: { _id: -1 } }
+    ]);
+    res.json(years.map(y => y._id).filter(y => y));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -362,54 +389,81 @@ router.post('/delete-all', async (req, res) => {
 // GET /api/tfs/developers/scorecard - Get developer scorecard data
 router.get('/developers/scorecard', async (req, res) => {
   try {
+    const year = req.query.year ? parseInt(req.query.year) : null;
     const tasks = await TfsTask.find({ totalActualHours: { $gt: 0 } }).lean();
 
     // Build developer stats from task data
     const devStats = new Map();
 
     for (const task of tasks) {
-      if (task.developerBreakdown) {
-        for (const [name, hours] of Object.entries(task.developerBreakdown)) {
-          if (!devStats.has(name)) {
-            devStats.set(name, {
-              name,
-              totalHours: 0,
-              taskCount: 0,
-              qualitySum: 0,
-              qualityCount: 0,
-              quarterlyHours: {},
-              quarterlyAdminHours: {},
-              adminHours: 0
-            });
-          }
+      // Process time entries to calculate hours per developer (filtered by year if specified)
+      const devHoursFromEntries = new Map();
+      const taskIdsProcessed = new Set();
 
-          const dev = devStats.get(name);
-          dev.totalHours += hours;
-          dev.taskCount += 1;
+      if (task.timeEntries) {
+        for (const entry of task.timeEntries) {
+          const entryDate = new Date(entry.workDate);
+          const entryYear = entryDate.getFullYear();
 
-          // Track admin hours (tfsId 7300)
-          if (task.tfsId === 7300) {
-            dev.adminHours += hours;
-          }
+          // Skip entries not in the selected year (if year filter is active)
+          if (year && entryYear !== year) continue;
 
-          if (task.quality !== null && task.quality !== undefined) {
-            dev.qualitySum += task.quality;
-            dev.qualityCount += 1;
-          }
+          const entryDevName = `${entry.firstName} ${entry.lastName}`;
+          devHoursFromEntries.set(entryDevName, (devHoursFromEntries.get(entryDevName) || 0) + entry.workHrs);
+        }
+      }
 
-          // Track quarterly hours from time entries
-          if (task.timeEntries) {
-            for (const entry of task.timeEntries) {
-              const entryDevName = `${entry.firstName} ${entry.lastName}`;
-              if (entryDevName === name && entry.workDate) {
-                const date = new Date(entry.workDate);
-                const quarter = `Q${Math.ceil((date.getMonth() + 1) / 3)} ${date.getFullYear()}`;
-                dev.quarterlyHours[quarter] = (dev.quarterlyHours[quarter] || 0) + entry.workHrs;
+      // If year filter is active and no entries match, skip this task
+      if (year && devHoursFromEntries.size === 0) continue;
 
-                // Track quarterly admin hours (tfsId 7300)
-                if (task.tfsId === 7300) {
-                  dev.quarterlyAdminHours[quarter] = (dev.quarterlyAdminHours[quarter] || 0) + entry.workHrs;
-                }
+      // Use filtered hours if year is specified, otherwise use developerBreakdown
+      const hoursSource = year ? devHoursFromEntries : (task.developerBreakdown ? new Map(Object.entries(task.developerBreakdown)) : new Map());
+
+      for (const [name, hours] of hoursSource) {
+        if (!devStats.has(name)) {
+          devStats.set(name, {
+            name,
+            totalHours: 0,
+            taskCount: 0,
+            qualitySum: 0,
+            qualityCount: 0,
+            quarterlyHours: {},
+            quarterlyAdminHours: {},
+            adminHours: 0
+          });
+        }
+
+        const dev = devStats.get(name);
+        dev.totalHours += hours;
+        dev.taskCount += 1;
+
+        // Track admin hours (tfsId 7300)
+        if (task.tfsId === 7300) {
+          dev.adminHours += hours;
+        }
+
+        if (task.quality !== null && task.quality !== undefined) {
+          dev.qualitySum += task.quality;
+          dev.qualityCount += 1;
+        }
+
+        // Track quarterly hours from time entries
+        if (task.timeEntries) {
+          for (const entry of task.timeEntries) {
+            const entryDevName = `${entry.firstName} ${entry.lastName}`;
+            if (entryDevName === name && entry.workDate) {
+              const date = new Date(entry.workDate);
+              const entryYear = date.getFullYear();
+
+              // Skip entries not in the selected year (if year filter is active)
+              if (year && entryYear !== year) continue;
+
+              const quarter = `Q${Math.ceil((date.getMonth() + 1) / 3)} ${date.getFullYear()}`;
+              dev.quarterlyHours[quarter] = (dev.quarterlyHours[quarter] || 0) + entry.workHrs;
+
+              // Track quarterly admin hours (tfsId 7300)
+              if (task.tfsId === 7300) {
+                dev.quarterlyAdminHours[quarter] = (dev.quarterlyAdminHours[quarter] || 0) + entry.workHrs;
               }
             }
           }
@@ -714,8 +768,11 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const originalId = parseInt(req.params.id);
-    const { tfsId, title, application, estimated, quality, actualHours, developers, mergeWithExisting } = req.body;
+    const { tfsId, title, application, estimated, quality, actualHours, developers, workDate, mergeWithExisting } = req.body;
     const newTfsId = tfsId ? parseInt(tfsId) : originalId;
+
+    // Parse work date or default to today
+    const entryDate = workDate ? new Date(workDate) : new Date();
 
     const task = await TfsTask.findOne({ tfsId: originalId });
     if (!task) {
@@ -800,7 +857,7 @@ router.put('/:id', async (req, res) => {
             firstName,
             lastName,
             title: '',
-            workDate: new Date(),
+            workDate: entryDate,
             workHrs: dev.hours,
             narrative: 'Manually entered',
             activityCode: '',

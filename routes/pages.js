@@ -1,20 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const TfsTask = require('../models/TfsTask');
+const Meeting = require('../models/Meeting');
 
 // GET / - Dashboard home page
 router.get('/', async (req, res) => {
   try {
-    const stats = await TfsTask.getSummaryStats();
-    const recentTasks = await TfsTask.find({ totalActualHours: { $gt: 0 } })
-      .sort({ updatedAt: -1 })
-      .limit(10)
-      .lean();
+    const [stats, meetingStats] = await Promise.all([
+      TfsTask.getSummaryStats(),
+      Meeting.getSummaryStats()
+    ]);
 
     res.render('home', {
       title: 'ASD Time Tracker',
       stats,
-      recentTasks
+      meetingStats
     });
   } catch (error) {
     res.render('error', { error: error.message });
@@ -61,6 +61,17 @@ router.get('/scorecard', async (req, res) => {
   try {
     res.render('scorecard', {
       title: 'Developer Scorecard'
+    });
+  } catch (error) {
+    res.render('error', { error: error.message });
+  }
+});
+
+// GET /meetings - Meetings dashboard page
+router.get('/meetings', async (req, res) => {
+  try {
+    res.render('meetings', {
+      title: 'Meeting Dashboard'
     });
   } catch (error) {
     res.render('error', { error: error.message });
