@@ -579,12 +579,21 @@
     let allDevelopers = [];
     let isCreateMode = false;
 
-    // Format date for input (avoids timezone issues)
-    function formatDateForInput(date) {
+    // Format local date for input (for "today" - uses local timezone)
+    function formatLocalDateForInput(date) {
       const d = new Date(date);
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Format UTC date for input (for dates from database - stored in UTC)
+    function formatUTCDateForInput(date) {
+      const d = new Date(date);
+      const year = d.getUTCFullYear();
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     }
 
@@ -654,7 +663,7 @@
       document.getElementById('estimatedInput').value = '';
       document.getElementById('actualHoursInput').value = '0.00';
       document.getElementById('qualityInput').value = '';
-      document.getElementById('workDateInput').value = formatDateForInput(new Date());
+      document.getElementById('workDateInput').value = formatLocalDateForInput(new Date());
       document.getElementById('developerList').innerHTML = '';
       document.getElementById('devTotalHours').textContent = '0.00';
       devRowIndex = 0;
@@ -693,10 +702,10 @@
         document.getElementById('qualityInput').value = task.quality || '';
 
         // Get most recent work date from time entries, or default to today
-        let workDate = formatDateForInput(new Date());
+        let workDate = formatLocalDateForInput(new Date());
         if (task.timeEntries && task.timeEntries.length > 0) {
           const dates = task.timeEntries.map(e => new Date(e.workDate)).sort((a, b) => b - a);
-          workDate = formatDateForInput(dates[0]);
+          workDate = formatUTCDateForInput(dates[0]);
         }
         document.getElementById('workDateInput').value = workDate;
 
@@ -841,7 +850,7 @@
       const estimated = document.getElementById('estimatedInput').value;
       const actualHours = document.getElementById('actualHoursInput').value;
       const quality = document.getElementById('qualityInput').value;
-      const workDate = document.getElementById('workDateInput').value || formatDateForInput(new Date());
+      const workDate = document.getElementById('workDateInput').value || formatLocalDateForInput(new Date());
 
       if (!newTfsId) {
         alertManager.showAlert('ASD ID is required', 'warning');

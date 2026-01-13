@@ -386,6 +386,13 @@
       }
     }
 
+    // Format date for display (uses UTC to avoid timezone issues)
+    function formatDateForDisplay(dateStr) {
+      const d = new Date(dateStr);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+    }
+
     function renderMeetingsTable(meetings) {
       const tbody = document.getElementById('meetingsTable');
 
@@ -395,9 +402,7 @@
       }
 
       tbody.innerHTML = meetings.map(m => {
-        const date = new Date(m.date).toLocaleDateString('en-US', {
-          year: 'numeric', month: 'short', day: 'numeric'
-        });
+        const date = formatDateForDisplay(m.date);
         const summary = m.summary ? (m.summary.length > 50 ? m.summary.substring(0, 50) + '...' : m.summary) : '-';
 
         return `
@@ -435,12 +440,21 @@
       loadMeetings();
     }
 
-    // Format date for input (avoids timezone issues)
-    function formatDateForInput(date) {
+    // Format local date for input (for "today" - uses local timezone)
+    function formatLocalDateForInput(date) {
       const d = new Date(date);
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Format UTC date for input (for dates from database - stored in UTC)
+    function formatUTCDateForInput(date) {
+      const d = new Date(date);
+      const year = d.getUTCFullYear();
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     }
 
@@ -449,7 +463,7 @@
       document.getElementById('modalTitle').textContent = 'Add Meeting';
       document.getElementById('meetingForm').reset();
       document.getElementById('meetingId').value = '';
-      document.getElementById('meetingDate').value = formatDateForInput(new Date());
+      document.getElementById('meetingDate').value = formatLocalDateForInput(new Date());
       document.getElementById('meetingModal').classList.remove('hidden');
     }
 
@@ -460,7 +474,7 @@
 
         document.getElementById('modalTitle').textContent = 'Edit Meeting';
         document.getElementById('meetingId').value = meeting._id;
-        document.getElementById('meetingDate').value = formatDateForInput(meeting.date);
+        document.getElementById('meetingDate').value = formatUTCDateForInput(meeting.date);
         document.getElementById('meetingType').value = meeting.type;
         document.getElementById('meetingEmployee').value = meeting.employee;
         document.getElementById('meetingDuration').value = meeting.meetingDuration;
