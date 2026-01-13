@@ -435,12 +435,21 @@
       loadMeetings();
     }
 
+    // Format date for input (avoids timezone issues)
+    function formatDateForInput(date) {
+      const d = new Date(date);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
     // Modal functions
     function openAddModal() {
       document.getElementById('modalTitle').textContent = 'Add Meeting';
       document.getElementById('meetingForm').reset();
       document.getElementById('meetingId').value = '';
-      document.getElementById('meetingDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('meetingDate').value = formatDateForInput(new Date());
       document.getElementById('meetingModal').classList.remove('hidden');
     }
 
@@ -451,7 +460,7 @@
 
         document.getElementById('modalTitle').textContent = 'Edit Meeting';
         document.getElementById('meetingId').value = meeting._id;
-        document.getElementById('meetingDate').value = new Date(meeting.date).toISOString().split('T')[0];
+        document.getElementById('meetingDate').value = formatDateForInput(meeting.date);
         document.getElementById('meetingType').value = meeting.type;
         document.getElementById('meetingEmployee').value = meeting.employee;
         document.getElementById('meetingDuration').value = meeting.meetingDuration;
