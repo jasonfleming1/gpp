@@ -1205,6 +1205,37 @@ td.negative {
   min-height: 60vh;
 }
 
+/* Reserve space for table containers to prevent layout shift */
+#tasksContainer {
+  min-height: 600px;
+}
+
+#tasksContainer .loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 600px;
+}
+
+/* Meetings table container - reserve space */
+.recent-tasks {
+  min-height: 500px;
+}
+
+#meetingsTable {
+  min-height: 400px;
+}
+
+/* Loading state within table area */
+#loadingState {
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
 .loading,
 .empty-state,
 .error {
@@ -1223,6 +1254,52 @@ td.negative {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* Skeleton loading for tables */
+.skeleton-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-default);
+}
+
+.skeleton-row {
+  display: flex;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  gap: var(--space-4);
+}
+
+.skeleton-row:last-child {
+  border-bottom: none;
+}
+
+.skeleton-cell {
+  height: 20px;
+  background: linear-gradient(90deg, var(--surface-tertiary) 25%, var(--surface-secondary) 50%, var(--surface-tertiary) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-cell.id { width: 80px; flex-shrink: 0; }
+.skeleton-cell.title { flex: 2; }
+.skeleton-cell.small { width: 60px; flex-shrink: 0; }
+.skeleton-cell.medium { width: 100px; flex-shrink: 0; }
+.skeleton-cell.actions { width: 150px; flex-shrink: 0; }
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+[data-theme="dark"] .skeleton-cell {
+  background: linear-gradient(90deg, var(--surface-tertiary) 25%, var(--surface-raised) 50%, var(--surface-tertiary) 75%);
+  background-size: 200% 100%;
 }
 
 .error {
