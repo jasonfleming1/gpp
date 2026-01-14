@@ -78,4 +78,15 @@ router.get('/meetings', async (req, res) => {
   }
 });
 
+// GET /managertasks - Manager Tasks page
+router.get('/managertasks', async (req, res) => {
+  try {
+    res.render('managertasks', {
+      title: 'Manager Tasks'
+    });
+  } catch (error) {
+    res.render('error', { error: error.message });
+  }
+});
+
 module.exports = router;

@@ -21,10 +21,12 @@ app.set('views', path.join(__dirname, 'views'));
 // Routes
 const tfsApiRoutes = require('./routes/api/tfs');
 const meetingsApiRoutes = require('./routes/api/meetings');
+const managerTasksApiRoutes = require('./routes/api/managertasks');
 const pageRoutes = require('./routes/pages');
 
 app.use('/api/tfs', tfsApiRoutes);
 app.use('/api/meetings', meetingsApiRoutes);
+app.use('/api/managertasks', managerTasksApiRoutes);
 app.use('/', pageRoutes);
 
 // Developers API

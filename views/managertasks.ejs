@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script>
+    (function() {
+      const saved = localStorage.getItem('theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <style>
+    /* Wide Modal with Two-Column Layout */
+    .modal-managertask .modal-content {
+      max-width: 700px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.15),
+        0 0 50px rgba(5, 113, 150, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    [data-theme="dark"] .modal-managertask .modal-content {
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.4),
+        0 0 60px rgba(61, 142, 179, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .modal-managertask .modal-header {
+      background: linear-gradient(135deg, var(--brand-secondary) 0%, var(--brand-secondary-dark) 100%);
+      color: white;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: var(--space-5) var(--space-6);
+    }
+
+    .modal-managertask .modal-header h2 {
+      color: white;
+    }
+
+    .modal-managertask .modal-close {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .modal-managertask .modal-close:hover {
+      color: white;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Form inputs glow on focus */
+    .modal-managertask input:focus,
+    .modal-managertask select:focus,
+    .modal-managertask textarea:focus {
+      box-shadow:
+        0 0 0 3px rgba(5, 113, 150, 0.15),
+        0 0 20px rgba(5, 113, 150, 0.1);
+    }
+
+    [data-theme="dark"] .modal-managertask input:focus,
+    [data-theme="dark"] .modal-managertask select:focus,
+    [data-theme="dark"] .modal-managertask textarea:focus {
+      box-shadow:
+        0 0 0 3px rgba(61, 142, 179, 0.2),
+        0 0 25px rgba(61, 142, 179, 0.15);
+    }
+
+    /* Quality Stars */
+    .quality-stars {
+      display: flex;
+      gap: var(--space-2);
+      margin-top: var(--space-2);
+    }
+
+    .quality-star {
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--border-default);
+      border-radius: var(--radius-md);
+      background: var(--surface-primary);
+      cursor: pointer;
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      color: var(--text-secondary);
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .quality-star:hover {
+      border-color: var(--brand-secondary);
+      color: var(--brand-secondary);
+      transform: scale(1.05);
+    }
+
+    .quality-star.active {
+      background: var(--brand-secondary);
+      border-color: var(--brand-secondary);
+      color: white;
+      box-shadow: 0 0 15px rgba(5, 113, 150, 0.3);
+    }
+
+    [data-theme="dark"] .quality-star.active {
+      box-shadow: 0 0 20px rgba(61, 142, 179, 0.4);
+    }
+
+    /* Accordion Filter Panel */
+    .filter-accordion {
+      margin-bottom: var(--space-4);
+    }
+
+    .filter-accordion-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      background: rgba(255, 255, 255, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      user-select: none;
+    }
+
+    [data-theme="dark"] .filter-accordion-header {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .filter-accordion-header:hover {
+      background: rgba(255, 255, 255, 0.65);
+      border-color: var(--brand-secondary);
+    }
+
+    [data-theme="dark"] .filter-accordion-header:hover {
+      background: rgba(30, 41, 59, 0.65);
+    }
+
+    .filter-accordion-title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .filter-accordion-icon {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform var(--transition-fast);
+    }
+
+    .filter-accordion.open .filter-accordion-icon {
+      transform: rotate(180deg);
+    }
+
+    .filter-accordion-badge {
+      background: var(--brand-secondary);
+      color: white;
+      padding: var(--space-1) var(--space-2);
+      border-radius: var(--radius-full);
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      min-width: 20px;
+      text-align: center;
+    }
+
+    .filter-accordion-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+      background: rgba(255, 255, 255, 0.4);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-top: none;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      margin-top: -1px;
+    }
+
+    [data-theme="dark"] .filter-accordion-content {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid rgba(148, 163, 184, 0.08);
+      border-top: none;
+    }
+
+    .filter-accordion.open .filter-accordion-content {
+      max-height: 300px;
+      padding: var(--space-4);
+    }
+
+    .filter-accordion.open .filter-accordion-header {
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+
+    .filter-section {
+      margin-bottom: var(--space-4);
+    }
+
+    .filter-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .filter-section-label {
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-2);
+    }
+
+    /* Application filter chips */
+    .app-filter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    .app-chip {
+      padding: var(--space-1) var(--space-3);
+      background: var(--surface-primary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-full);
+      color: var(--text-secondary);
+      font-size: var(--font-size-xs);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .app-chip:hover {
+      border-color: var(--brand-secondary);
+      color: var(--brand-secondary);
+    }
+
+    .app-chip.active {
+      background: var(--brand-secondary);
+      border-color: var(--brand-secondary);
+      color: white;
+      box-shadow: 0 0 10px rgba(5, 113, 150, 0.2);
+    }
+
+    [data-theme="dark"] .app-chip.active {
+      box-shadow: 0 0 12px rgba(61, 142, 179, 0.3);
+    }
+
+    /* Search toolbar */
+    .search-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
+    }
+
+    .search-toolbar .search-bar {
+      flex: 1;
+      max-width: 400px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/">ASD Time Tracker</a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/" class="nav-link">Dashboard</a>
+      <a href="/tasks" class="nav-link">Tasks</a>
+      <a href="/scorecard" class="nav-link">Scorecard</a>
+      <a href="/meetings" class="nav-link">Meetings</a>
+      <a href="/managertasks" class="nav-link">Manager Tasks</a>
+      <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
+    </div>
+  </nav>
+
+  <!-- Add/Edit Task Modal -->
+  <div id="taskModal" class="modal modal-managertask hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Add Manager Task</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="taskForm">
+          <input type="hidden" id="taskId">
+          <div class="modal-grid-layout">
+            <div class="modal-col-left">
+              <div class="form-group">
+                <label for="taskRustId">Rust ID (Optional)</label>
+                <input type="text" id="taskRustId" placeholder="e.g., RUST-123">
+              </div>
+              <div class="form-group">
+                <label for="taskApplication">Application *</label>
+                <select id="taskApplication" required>
+                  <option value="">Select application...</option>
+                  <option value="ASD Manager">ASD Manager</option>
+                  <option value="CARMS">CARMS</option>
+                  <option value="RSRS">RSRS</option>
+                  <option value="namelessApp">namelessApp</option>
+                  <option value="DESI">DESI</option>
+                  <option value="DNN">DNN</option>
+                  <option value="MailgunAPI">MailgunAPI</option>
+                  <option value="Portal">Portal</option>
+                  <option value="SmartScan">SmartScan</option>
+                  <option value="SmartKey">SmartKey</option>
+                  <option value="WebApp">WebApp</option>
+                  <option value="Process">Process</option>
+                  <option value="Administrative">Administrative</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="taskRelease">Release</label>
+                <input type="text" id="taskRelease" placeholder="e.g., v2.1.0">
+              </div>
+              <div class="form-group">
+                <label for="taskStatus">Status</label>
+                <select id="taskStatus">
+                  <option value="Not Started">Not Started</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Closed">Closed</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Quality Measure</label>
+                <div class="quality-stars">
+                  <button type="button" class="quality-star" data-value="1">1</button>
+                  <button type="button" class="quality-star" data-value="2">2</button>
+                  <button type="button" class="quality-star" data-value="3">3</button>
+                  <button type="button" class="quality-star" data-value="4">4</button>
+                  <button type="button" class="quality-star" data-value="5">5</button>
+                </div>
+                <input type="hidden" id="taskQuality">
+              </div>
+            </div>
+            <div class="modal-col-right">
+              <div class="form-group">
+                <label for="taskDescription">Description *</label>
+                <textarea id="taskDescription" required placeholder="Describe the task..." style="min-height: 240px; resize: vertical;"></textarea>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-info" onclick="saveTask()">Save Task</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="container">
+    <div class="dashboard">
+      <div class="page-header">
+        <h1>Manager Tasks</h1>
+        <button class="btn btn-info" onclick="openAddModal()">Add Task</button>
+      </div>
+
+      <!-- Loading State -->
+      <div id="loadingState">
+        <div class="skeleton-table">
+          <div class="skeleton-row" style="background: var(--surface-tertiary);">
+            <div class="skeleton-cell medium" style="background: transparent;"></div>
+            <div class="skeleton-cell medium" style="background: transparent;"></div>
+            <div class="skeleton-cell title" style="background: transparent;"></div>
+            <div class="skeleton-cell small" style="background: transparent;"></div>
+            <div class="skeleton-cell small" style="background: transparent;"></div>
+            <div class="skeleton-cell actions" style="background: transparent;"></div>
+          </div>
+          <div class="skeleton-row"><div class="skeleton-cell medium"></div><div class="skeleton-cell medium"></div><div class="skeleton-cell title"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell actions"></div></div>
+          <div class="skeleton-row"><div class="skeleton-cell medium"></div><div class="skeleton-cell medium"></div><div class="skeleton-cell title"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell actions"></div></div>
+          <div class="skeleton-row"><div class="skeleton-cell medium"></div><div class="skeleton-cell medium"></div><div class="skeleton-cell title"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell actions"></div></div>
+          <div class="skeleton-row"><div class="skeleton-cell medium"></div><div class="skeleton-cell medium"></div><div class="skeleton-cell title"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell actions"></div></div>
+          <div class="skeleton-row"><div class="skeleton-cell medium"></div><div class="skeleton-cell medium"></div><div class="skeleton-cell title"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell actions"></div></div>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div id="mainContent" style="display: none;">
+        <!-- Search Bar -->
+        <div class="search-toolbar">
+          <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search tasks...">
+          </div>
+        </div>
+
+        <!-- Collapsible Filter Accordion -->
+        <div class="filter-accordion" id="filterAccordion">
+          <div class="filter-accordion-header" onclick="toggleFilterAccordion()">
+            <div class="filter-accordion-title">
+              <svg class="filter-accordion-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+              <span>Filters</span>
+            </div>
+            <span class="filter-accordion-badge" id="activeFilterCount">0</span>
+          </div>
+          <div class="filter-accordion-content">
+            <!-- Status Filters -->
+            <div class="filter-section">
+              <div class="filter-section-label">Status</div>
+              <div class="filters">
+                <button class="filter-btn active" data-status="all">All</button>
+                <button class="filter-btn" data-status="Not Started">Not Started</button>
+                <button class="filter-btn" data-status="In Progress">In Progress</button>
+                <button class="filter-btn" data-status="Closed">Closed</button>
+              </div>
+            </div>
+
+            <!-- Application Filters -->
+            <div class="filter-section">
+              <div class="filter-section-label">Application</div>
+              <div class="app-filter-chips" id="appChips">
+                <button class="app-chip active" data-app="all">All Apps</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tasks Table -->
+        <div class="recent-tasks">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="rustId">Rust ID</th>
+                <th class="sortable" data-sort="application">Application</th>
+                <th class="sortable" data-sort="description">Description</th>
+                <th class="sortable" data-sort="status">Status</th>
+                <th class="sortable" data-sort="qualityMeasure">Quality</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tasksTable">
+            </tbody>
+          </table>
+          <div class="pagination" id="pagination"></div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state" style="display: none;">
+        <h3>No Manager Tasks Yet</h3>
+        <p>Start tracking your manager tasks by adding your first one.</p>
+        <button class="btn btn-info" onclick="openAddModal()">Add First Task</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    let currentPage = 1;
+    let currentStatus = 'all';
+    let currentApp = 'all';
+    let currentSearch = '';
+    let sortField = 'createdAt';
+    let sortOrder = 'desc';
+    let selectedQuality = null;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTasks();
+      loadAppChips();
+      setupEventListeners();
+    });
+
+    // Toggle filter accordion
+    function toggleFilterAccordion() {
+      const accordion = document.getElementById('filterAccordion');
+      accordion.classList.toggle('open');
+    }
+
+    // Update active filter count badge
+    function updateFilterCount() {
+      let count = 0;
+      if (currentStatus !== 'all') count++;
+      if (currentApp !== 'all') count++;
+      document.getElementById('activeFilterCount').textContent = count;
+    }
+
+    function setupEventListeners() {
+      // Status filter buttons
+      document.querySelectorAll('.filter-btn[data-status]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.filter-btn[data-status]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentStatus = btn.dataset.status;
+          currentPage = 1;
+          updateFilterCount();
+          loadTasks();
+        });
+      });
+
+      // Search
+      let searchTimeout;
+      document.getElementById('searchInput').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          currentSearch = e.target.value;
+          currentPage = 1;
+          loadTasks();
+        }, 300);
+      });
+
+      // Sort headers
+      document.querySelectorAll('.data-table th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+          const field = th.dataset.sort;
+          if (sortField === field) {
+            sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+          } else {
+            sortField = field;
+            sortOrder = 'desc';
+          }
+          document.querySelectorAll('.data-table th.sortable').forEach(h => h.classList.remove('active'));
+          th.classList.add('active');
+          loadTasks();
+        });
+      });
+
+      // Quality stars
+      document.querySelectorAll('.quality-star').forEach(star => {
+        star.addEventListener('click', (e) => {
+          e.preventDefault();
+          const value = parseInt(star.dataset.value);
+
+          // Toggle off if clicking same value
+          if (selectedQuality === value) {
+            selectedQuality = null;
+            document.querySelectorAll('.quality-star').forEach(s => s.classList.remove('active'));
+          } else {
+            selectedQuality = value;
+            document.querySelectorAll('.quality-star').forEach(s => s.classList.remove('active'));
+            star.classList.add('active');
+          }
+          document.getElementById('taskQuality').value = selectedQuality || '';
+        });
+      });
+    }
+
+    async function loadAppChips() {
+      try {
+        const res = await fetch('/api/managertasks/applications');
+        const apps = await res.json();
+
+        const container = document.getElementById('appChips');
+        let html = '<button class="app-chip active" data-app="all">All Apps</button>';
+
+        apps.forEach(app => {
+          html += `<button class="app-chip" data-app="${app}">${app}</button>`;
+        });
+
+        container.innerHTML = html;
+
+        // Add event listeners to new chips
+        container.querySelectorAll('.app-chip').forEach(chip => {
+          chip.addEventListener('click', () => {
+            container.querySelectorAll('.app-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            currentApp = chip.dataset.app;
+            currentPage = 1;
+            updateFilterCount();
+            loadTasks();
+          });
+        });
+      } catch (error) {
+        console.error('Failed to load applications:', error);
+      }
+    }
+
+    async function loadTasks() {
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: 25,
+        sortField,
+        sortOrder
+      });
+
+      if (currentStatus !== 'all') params.set('status', currentStatus);
+      if (currentApp !== 'all') params.set('application', currentApp);
+      if (currentSearch) params.set('search', currentSearch);
+
+      try {
+        const res = await fetch(`/api/managertasks?${params}`);
+        const data = await res.json();
+
+        document.getElementById('loadingState').style.display = 'none';
+
+        if (data.pagination.total === 0 && currentStatus === 'all' && currentApp === 'all' && !currentSearch) {
+          document.getElementById('emptyState').style.display = 'block';
+          document.getElementById('mainContent').style.display = 'none';
+        } else {
+          document.getElementById('emptyState').style.display = 'none';
+          document.getElementById('mainContent').style.display = 'block';
+          renderTasksTable(data.tasks);
+          renderPagination(data.pagination);
+        }
+      } catch (error) {
+        console.error('Failed to load tasks:', error);
+        document.getElementById('loadingState').innerHTML = '<p class="error">Failed to load tasks</p>';
+      }
+    }
+
+    function getStatusBadgeClass(status) {
+      switch (status) {
+        case 'Not Started': return 'warning';
+        case 'In Progress': return 'info';
+        case 'Closed': return 'success';
+        default: return 'info';
+      }
+    }
+
+    function renderTasksTable(tasks) {
+      const tbody = document.getElementById('tasksTable');
+
+      if (tasks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No tasks found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = tasks.map(t => {
+        const description = t.description.length > 60 ? t.description.substring(0, 60) + '...' : t.description;
+        const quality = t.qualityMeasure || '-';
+        const rustId = t.rustId || '-';
+
+        return `
+          <tr>
+            <td><strong>${rustId}</strong></td>
+            <td><span class="badge info">${t.application}</span></td>
+            <td class="truncate">${description}</td>
+            <td><span class="badge ${getStatusBadgeClass(t.status)}">${t.status}</span></td>
+            <td>${quality}</td>
+            <td>
+              <button class="btn btn-sm btn-secondary" onclick="editTask('${t._id}')">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteTask('${t._id}')">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderPagination(pagination) {
+      const container = document.getElementById('pagination');
+      if (pagination.pages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      for (let i = 1; i <= pagination.pages; i++) {
+        html += `<a href="#" class="page-link ${i === pagination.page ? 'active' : ''}" onclick="goToPage(${i}); return false;">${i}</a>`;
+      }
+      container.innerHTML = html;
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      loadTasks();
+    }
+
+    // Modal functions
+    function openAddModal() {
+      document.getElementById('modalTitle').textContent = 'Add Manager Task';
+      document.getElementById('taskForm').reset();
+      document.getElementById('taskId').value = '';
+      selectedQuality = null;
+      document.querySelectorAll('.quality-star').forEach(s => s.classList.remove('active'));
+      document.getElementById('taskModal').classList.remove('hidden');
+    }
+
+    async function editTask(id) {
+      try {
+        const res = await fetch(`/api/managertasks/${id}`);
+        const task = await res.json();
+
+        document.getElementById('modalTitle').textContent = 'Edit Manager Task';
+        document.getElementById('taskId').value = task._id;
+        document.getElementById('taskRustId').value = task.rustId || '';
+        document.getElementById('taskApplication').value = task.application;
+        document.getElementById('taskDescription').value = task.description;
+        document.getElementById('taskRelease').value = task.release || '';
+        document.getElementById('taskStatus').value = task.status;
+
+        // Set quality
+        selectedQuality = task.qualityMeasure;
+        document.getElementById('taskQuality').value = selectedQuality || '';
+        document.querySelectorAll('.quality-star').forEach(s => {
+          s.classList.toggle('active', parseInt(s.dataset.value) === selectedQuality);
+        });
+
+        document.getElementById('taskModal').classList.remove('hidden');
+      } catch (error) {
+        alert('Failed to load task: ' + error.message);
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('taskModal').classList.add('hidden');
+    }
+
+    async function saveTask() {
+      const id = document.getElementById('taskId').value;
+      const data = {
+        rustId: document.getElementById('taskRustId').value,
+        application: document.getElementById('taskApplication').value,
+        description: document.getElementById('taskDescription').value,
+        release: document.getElementById('taskRelease').value,
+        status: document.getElementById('taskStatus').value,
+        qualityMeasure: document.getElementById('taskQuality').value || null
+      };
+
+      if (!data.application) {
+        alert('Please select an application');
+        return;
+      }
+      if (!data.description) {
+        alert('Please enter a description');
+        return;
+      }
+
+      try {
+        const url = id ? `/api/managertasks/${id}` : '/api/managertasks';
+        const method = id ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+
+        closeModal();
+        loadTasks();
+      } catch (error) {
+        alert('Failed to save task: ' + error.message);
+      }
+    }
+
+    async function deleteTask(id) {
+      if (!confirm('Are you sure you want to delete this task?')) return;
+
+      try {
+        const res = await fetch(`/api/managertasks/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+
+        loadTasks();
+      } catch (error) {
+        alert('Failed to delete task: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>
