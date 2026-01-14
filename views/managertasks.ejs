@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= title %></title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/css/style.css">
   <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
   <script>
@@ -687,11 +688,11 @@
 
       // Calculate next available Rust ID
       try {
-        const res = await fetch('/api/managertasks');
-        const tasks = await res.json();
+        const res = await fetch('/api/managertasks?limit=1000');
+        const data = await res.json();
 
         // Extract numeric values from all Rust IDs
-        const numbers = tasks
+        const numbers = data.tasks
           .map(t => t.rustId)
           .filter(id => id)
           .map(id => {
