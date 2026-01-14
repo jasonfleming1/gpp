@@ -247,11 +247,17 @@ router.post('/import', upload.single('file'), async (req, res) => {
     let updated = 0;
     const developerMap = new Map();
 
+    let skippedMiriah = 0;
     for (const taskData of mergedData) {
-      // Check if Miriah Pooler has entries on this task
+      // Check if Miriah Pooler has entries on this task - skip entirely if so
       const hasMiriahPooler = taskData.timeEntries.some(
         entry => entry.firstName === 'Miriah' && entry.lastName === 'Pooler'
       );
+
+      if (hasMiriahPooler) {
+        skippedMiriah++;
+        continue;
+      }
 
       for (const entry of taskData.timeEntries) {
         const key = entry.timekeeperNumber;
@@ -278,18 +284,6 @@ router.post('/import', upload.single('file'), async (req, res) => {
         }
       }
 
-      // Apply Miriah Pooler defaults: quality=4, estimated=actual
-      let taskQuality = taskData.quality;
-      let taskEstimated = taskData.estimated;
-      if (hasMiriahPooler) {
-        if (taskQuality === null || taskQuality === undefined) {
-          taskQuality = 4;
-        }
-        if (taskEstimated === null || taskEstimated === undefined) {
-          taskEstimated = taskData.totalActualHours;
-        }
-      }
-
       // Mark title if TFS ID was not entered
       let taskTitle = taskData.title;
       if (taskData.tfsIdNotEntered && !taskTitle?.includes('[TFS ID Not Entered]')) {
@@ -301,15 +295,6 @@ router.post('/import', upload.single('file'), async (req, res) => {
       if (existingTask) {
         existingTask.timeEntries = taskData.timeEntries;
         existingTask.title = taskTitle || existingTask.title;
-        // Apply Miriah Pooler defaults on update too
-        if (hasMiriahPooler) {
-          if (existingTask.quality === null || existingTask.quality === undefined) {
-            existingTask.quality = 4;
-          }
-          if (existingTask.estimated === null || existingTask.estimated === undefined) {
-            existingTask.estimated = taskData.totalActualHours;
-          }
-        }
         existingTask.recalculateTotals();
         await existingTask.save();
         updated++;
@@ -322,8 +307,8 @@ router.post('/import', upload.single('file'), async (req, res) => {
         await TfsTask.create({
           tfsId: taskData.tfsId,
           title: taskTitle,
-          estimated: taskEstimated,
-          quality: taskQuality,
+          estimated: taskData.estimated,
+          quality: taskData.quality,
           timeEntries: taskData.timeEntries,
           totalActualHours: taskData.totalActualHours,
           developerBreakdown
@@ -354,10 +339,11 @@ router.post('/import', upload.single('file'), async (req, res) => {
 
     res.json({
       success: true,
-      message: `Import complete: ${imported} new tasks, ${updated} updated, ${developerMap.size} developers`,
+      message: `Import complete: ${imported} new tasks, ${updated} updated, ${developerMap.size} developers${skippedMiriah > 0 ? `, ${skippedMiriah} Miriah Pooler tasks excluded` : ''}`,
       imported,
       updated,
-      developers: developerMap.size
+      developers: developerMap.size,
+      skippedMiriah
     });
   } catch (error) {
     if (req.file && fs.existsSync(req.file.path)) {
