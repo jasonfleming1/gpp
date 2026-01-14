@@ -678,12 +678,35 @@
     }
 
     // Modal functions
-    function openAddModal() {
+    async function openAddModal() {
       document.getElementById('modalTitle').textContent = 'Add Manager Task';
       document.getElementById('taskForm').reset();
       document.getElementById('taskId').value = '';
       selectedQuality = null;
       document.querySelectorAll('.quality-star').forEach(s => s.classList.remove('active'));
+
+      // Calculate next available Rust ID
+      try {
+        const res = await fetch('/api/managertasks');
+        const tasks = await res.json();
+
+        // Extract numeric values from all Rust IDs
+        const numbers = tasks
+          .map(t => t.rustId)
+          .filter(id => id)
+          .map(id => {
+            // Extract numbers from the Rust ID (handles "123", "RUST-123", etc.)
+            const match = id.match(/(\d+)/);
+            return match ? parseInt(match[1], 10) : 0;
+          })
+          .filter(n => !isNaN(n));
+
+        const maxNumber = numbers.length > 0 ? Math.max(...numbers) : 0;
+        document.getElementById('taskRustId').value = maxNumber + 1;
+      } catch (error) {
+        console.error('Failed to calculate next Rust ID:', error);
+      }
+
       document.getElementById('taskModal').classList.remove('hidden');
     }
 
