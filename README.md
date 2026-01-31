@@ -1,4 +1,4 @@
-# ASD Time Tracker
+# ASD Tracker
 
 A corporate time tracking and analytics application for managing TFS tasks, developer scorecards, and meeting metrics.
 

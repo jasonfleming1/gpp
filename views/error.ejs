@@ -10,11 +10,25 @@
 <body>
   <nav class="navbar">
     <div class="navbar-brand">
-      <a href="/">ASD Time Tracker</a>
+      <a href="/">ASD Tracker</a>
     </div>
     <div class="navbar-menu">
       <a href="/" class="nav-link">Dashboard</a>
-      <a href="/tasks" class="nav-link">Tasks</a>
+      <div class="nav-dropdown">
+        <button class="nav-dropdown-toggle">
+          Team
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a href="/tasks">Tasks</a>
+          <a href="/scorecard">Scorecard</a>
+        </div>
+      </div>
+      <a href="/meetings" class="nav-link">Meetings</a>
+      <a href="/managertasks" class="nav-link">Manager Tasks</a>
+      <a href="/releases" class="nav-link">Releases</a>
     </div>
   </nav>
 

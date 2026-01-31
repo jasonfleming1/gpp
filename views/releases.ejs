@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script>
+    (function() {
+      const saved = localStorage.getItem('theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <style>
+    /* Release Modal - Matches ASD Task Modal Design */
+    .modal-release .modal-content {
+      max-width: 800px;
+      width: 95%;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.15),
+        0 0 50px rgba(5, 113, 150, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    [data-theme="dark"] .modal-release .modal-content {
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.4),
+        0 0 60px rgba(61, 142, 179, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .modal-release .modal-header {
+      background: linear-gradient(135deg, var(--brand-secondary) 0%, var(--brand-secondary-dark) 100%);
+      color: white;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: var(--space-4) var(--space-6);
+    }
+
+    .modal-release .modal-header h2 {
+      color: white;
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    .modal-release .modal-close {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .modal-release .modal-close:hover {
+      color: white;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Two-column grid layout */
+    .task-modal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-6);
+    }
+
+    .task-modal-left {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+    }
+
+    .form-row .form-group {
+      margin-bottom: 0;
+    }
+
+    /* Right panel with shaded background */
+    .task-modal-right {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface-secondary);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      border: 1px solid var(--border-default);
+    }
+
+    [data-theme="dark"] .task-modal-right {
+      background: rgba(0, 0, 0, 0.2);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .task-modal-right .form-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .task-modal-right textarea {
+      flex: 1;
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    /* Form inputs glow on focus */
+    .modal-release input:focus,
+    .modal-release select:focus,
+    .modal-release textarea:focus {
+      box-shadow:
+        0 0 0 3px rgba(5, 113, 150, 0.15),
+        0 0 20px rgba(5, 113, 150, 0.1);
+    }
+
+    [data-theme="dark"] .modal-release input:focus,
+    [data-theme="dark"] .modal-release select:focus,
+    [data-theme="dark"] .modal-release textarea:focus {
+      box-shadow:
+        0 0 0 3px rgba(61, 142, 179, 0.2),
+        0 0 25px rgba(61, 142, 179, 0.15);
+    }
+
+    /* Version input styling */
+    .version-input {
+      font-family: monospace;
+      letter-spacing: 0.05em;
+    }
+
+    /* Version cells */
+    .version-cell {
+      font-family: monospace;
+      font-size: var(--font-size-sm);
+    }
+
+    /* Date Input Theme Support */
+    input[type="date"] {
+      color-scheme: light;
+    }
+
+    [data-theme="dark"] input[type="date"] {
+      color-scheme: dark;
+    }
+
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: none;
+      opacity: 0.7;
+      cursor: pointer;
+    }
+
+    [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+    }
+
+    @media (max-width: 700px) {
+      .task-modal-grid {
+        grid-template-columns: 1fr;
+      }
+      .task-modal-right {
+        max-height: 250px;
+      }
+      .modal-release .modal-content {
+        max-width: 95%;
+      }
+    }
+
+    /* History Modal */
+    .modal-history .modal-content {
+      max-width: 800px;
+    }
+
+    .history-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .history-item {
+      padding: var(--space-4);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-3);
+      background: var(--surface-secondary);
+    }
+
+    .history-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .history-date {
+      font-size: var(--font-size-sm);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-2);
+      font-weight: 600;
+    }
+
+    .history-fields {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-2);
+      font-size: var(--font-size-sm);
+    }
+
+    .history-field {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .history-field-label {
+      color: var(--text-tertiary);
+      min-width: 80px;
+    }
+
+    .history-field-value {
+      color: var(--text-primary);
+      font-family: monospace;
+    }
+
+    .history-notes {
+      margin-top: var(--space-2);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--border-default);
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+    }
+
+    .no-history {
+      text-align: center;
+      color: var(--text-muted);
+      padding: var(--space-6);
+    }
+
+    .btn-history {
+      background: var(--brand-secondary);
+      border-color: var(--brand-secondary);
+      color: white;
+    }
+
+    .btn-history:hover:not(:disabled) {
+      background: var(--brand-secondary-dark);
+      border-color: var(--brand-secondary-dark);
+      color: white;
+    }
+
+    .btn-history:disabled {
+      background: var(--surface-secondary);
+      border-color: var(--border-default);
+      color: var(--text-muted);
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Attachments Section */
+    .attachments-section {
+      margin-top: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--border-default);
+    }
+
+    .attachments-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-2);
+    }
+
+    .attachments-header label {
+      font-weight: 600;
+      font-size: var(--font-size-sm);
+      color: var(--text-primary);
+    }
+
+    .file-upload-wrapper {
+      position: relative;
+    }
+
+    .file-upload-wrapper input[type="file"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .file-upload-wrapper .btn {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    .attachments-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      max-height: 100px;
+      overflow-y: auto;
+    }
+
+    .no-attachments {
+      color: var(--text-muted);
+      font-size: var(--font-size-sm);
+      font-style: italic;
+    }
+
+    .attachment-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-2) var(--space-3);
+      background: var(--surface-secondary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+    }
+
+    .attachment-info {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      overflow: hidden;
+    }
+
+    .attachment-icon {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      color: var(--text-secondary);
+    }
+
+    .attachment-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 300px;
+    }
+
+    .attachment-size {
+      color: var(--text-muted);
+      font-size: var(--font-size-xs);
+      flex-shrink: 0;
+    }
+
+    .attachment-actions {
+      display: flex;
+      gap: var(--space-1);
+      flex-shrink: 0;
+    }
+
+    .attachment-actions .btn {
+      padding: var(--space-1) var(--space-2);
+    }
+
+    .upload-progress {
+      margin-top: var(--space-2);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 6px;
+      background: var(--surface-tertiary);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--brand-secondary);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .progress-text {
+      font-size: var(--font-size-xs);
+      color: var(--text-secondary);
+    }
+
+    /* Attachment indicator in table */
+    .attach-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      margin-left: var(--space-2);
+      color: var(--text-muted);
+      font-size: var(--font-size-xs);
+      vertical-align: middle;
+    }
+
+    .attach-indicator svg {
+      color: var(--brand-secondary);
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/">ASD Tracker</a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/" class="nav-link">Dashboard</a>
+      <div class="nav-dropdown">
+        <button class="nav-dropdown-toggle">
+          Team
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a href="/tasks">Tasks</a>
+          <a href="/scorecard">Scorecard</a>
+        </div>
+      </div>
+      <a href="/meetings" class="nav-link">Meetings</a>
+      <a href="/managertasks" class="nav-link">Manager Tasks</a>
+      <a href="/releases" class="nav-link">Releases</a>
+      <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
+    </div>
+  </nav>
+
+  <!-- Add/Edit Release Modal -->
+  <div id="releaseModal" class="modal modal-release hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Add Release</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="releaseForm">
+          <input type="hidden" id="releaseId">
+          <div class="task-modal-grid">
+            <!-- Left Column: Release Details -->
+            <div class="task-modal-left">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="releaseApplication">Application *</label>
+                  <select id="releaseApplication" required>
+                    <option value="">Select...</option>
+                    <option value="ASD Manager">ASD Manager</option>
+                    <option value="CARMS">CARMS</option>
+                    <option value="RSRS">RSRS</option>
+                    <option value="namelessApp">namelessApp</option>
+                    <option value="DESI">DESI</option>
+                    <option value="DNN">DNN</option>
+                    <option value="MailgunAPI">MailgunAPI</option>
+                    <option value="Portal">Portal</option>
+                    <option value="SmartScan">SmartScan</option>
+                    <option value="SmartKey">SmartKey</option>
+                    <option value="WebApp">WebApp</option>
+                    <option value="Process">Process</option>
+                    <option value="Administrative">Administrative</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="releaseDate">Release Date</label>
+                  <input type="date" id="releaseDate">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="releaseTqa">TQA Version</label>
+                <input type="text" id="releaseTqa" class="version-input" placeholder="XX.XX.XXX">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="releaseUat">UAT Version</label>
+                  <input type="text" id="releaseUat" class="version-input" placeholder="XX.XX.XXX">
+                </div>
+                <div class="form-group">
+                  <label for="releaseProd">PROD Version</label>
+                  <input type="text" id="releaseProd" class="version-input" placeholder="XX.XX.XXX">
+                </div>
+              </div>
+            </div>
+            <!-- Right Column: Notes & Attachments -->
+            <div class="task-modal-right">
+              <div class="form-group">
+                <label for="releaseNotes">Notes</label>
+                <textarea id="releaseNotes" placeholder="Release notes..."></textarea>
+              </div>
+              <!-- Attachments Section (only visible in edit mode) -->
+              <div id="attachmentsSection" class="attachments-section" style="display: none;">
+                <div class="attachments-header">
+                  <label>Attachments</label>
+                  <div class="file-upload-wrapper">
+                    <input type="file" id="fileInput" multiple accept=".jpeg,.jpg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip,.rar">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('fileInput').click()">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                      </svg>
+                      Add Files
+                    </button>
+                  </div>
+                </div>
+                <div id="attachmentsList" class="attachments-list">
+                  <span class="no-attachments">No attachments</span>
+                </div>
+                <div id="uploadProgress" class="upload-progress" style="display: none;">
+                  <div class="progress-bar"><div class="progress-fill"></div></div>
+                  <span class="progress-text">Uploading...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-info" onclick="saveRelease()">Save Release</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Modal -->
+  <div id="historyModal" class="modal modal-history hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="historyModalTitle">Release History</h2>
+        <button class="modal-close" onclick="closeHistoryModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="historyContent" class="history-list">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeHistoryModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="container">
+    <div class="dashboard">
+      <div class="page-header">
+        <h1>Releases</h1>
+        <button class="btn btn-info" onclick="openAddModal()">Add Release</button>
+      </div>
+
+      <!-- Loading State -->
+      <div id="loadingState">
+        <div class="skeleton-table">
+          <div class="skeleton-row" style="background: var(--surface-tertiary);">
+            <div class="skeleton-cell medium" style="background: transparent;"></div>
+            <div class="skeleton-cell small" style="background: transparent;"></div>
+            <div class="skeleton-cell small" style="background: transparent;"></div>
+            <div class="skeleton-cell small" style="background: transparent;"></div>
+            <div class="skeleton-cell small" style="background: transparent;"></div>
+            <div class="skeleton-cell title" style="background: transparent;"></div>
+            <div class="skeleton-cell actions" style="background: transparent;"></div>
+          </div>
+          <div class="skeleton-row"><div class="skeleton-cell medium"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell title"></div><div class="skeleton-cell actions"></div></div>
+          <div class="skeleton-row"><div class="skeleton-cell medium"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell title"></div><div class="skeleton-cell actions"></div></div>
+          <div class="skeleton-row"><div class="skeleton-cell medium"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell title"></div><div class="skeleton-cell actions"></div></div>
+          <div class="skeleton-row"><div class="skeleton-cell medium"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell title"></div><div class="skeleton-cell actions"></div></div>
+          <div class="skeleton-row"><div class="skeleton-cell medium"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell small"></div><div class="skeleton-cell title"></div><div class="skeleton-cell actions"></div></div>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div id="mainContent" style="display: none;">
+        <!-- Releases Table -->
+        <div class="recent-tasks">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="application">Application</th>
+                <th class="sortable" data-sort="releaseDate">Date</th>
+                <th class="sortable" data-sort="tqa">TQA</th>
+                <th class="sortable" data-sort="uat">UAT</th>
+                <th class="sortable" data-sort="prod">PROD</th>
+                <th class="sortable" data-sort="notes">Notes</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="releasesTable">
+            </tbody>
+          </table>
+          <div class="pagination" id="pagination"></div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state" style="display: none;">
+        <h3>No Releases Yet</h3>
+        <p>Start tracking your releases by adding your first one.</p>
+        <button class="btn btn-info" onclick="openAddModal()">Add First Release</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    let currentPage = 1;
+    let sortField = 'application';
+    let sortOrder = 'asc';
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadReleases();
+      setupEventListeners();
+    });
+
+    function setupEventListeners() {
+      // Sort headers
+      document.querySelectorAll('.data-table th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+          const field = th.dataset.sort;
+          if (sortField === field) {
+            sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+          } else {
+            sortField = field;
+            sortOrder = 'asc';
+          }
+          document.querySelectorAll('.data-table th.sortable').forEach(h => h.classList.remove('active'));
+          th.classList.add('active');
+          loadReleases();
+        });
+      });
+    }
+
+    async function loadReleases() {
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: 25,
+        sortField,
+        sortOrder
+      });
+
+      try {
+        const res = await fetch(`/api/releases?${params}`);
+        const data = await res.json();
+
+        document.getElementById('loadingState').style.display = 'none';
+
+        if (data.pagination.total === 0) {
+          document.getElementById('emptyState').style.display = 'block';
+          document.getElementById('mainContent').style.display = 'none';
+        } else {
+          document.getElementById('emptyState').style.display = 'none';
+          document.getElementById('mainContent').style.display = 'block';
+          renderReleasesTable(data.releases);
+          renderPagination(data.pagination);
+        }
+      } catch (error) {
+        console.error('Failed to load releases:', error);
+        document.getElementById('loadingState').innerHTML = '<p class="error">Failed to load releases</p>';
+      }
+    }
+
+    function renderReleasesTable(releases) {
+      const tbody = document.getElementById('releasesTable');
+
+      if (releases.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No releases found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = releases.map(r => {
+        const notes = r.notes ? (r.notes.length > 40 ? r.notes.substring(0, 40) + '...' : r.notes) : '-';
+        const tqa = r.tqa || '-';
+        const uat = r.uat || '-';
+        const prod = r.prod || '-';
+        const releaseDate = r.releaseDate ? new Date(r.releaseDate).toLocaleDateString() : '-';
+        const hasHistory = r.history && r.history.length > 0;
+        const attachCount = r.attachments ? r.attachments.length : 0;
+        const attachIcon = attachCount > 0 ? `<span class="attach-indicator" title="${attachCount} attachment(s)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>${attachCount}</span>` : '';
+
+        return `
+          <tr>
+            <td><span class="badge info">${r.application}</span>${attachIcon}</td>
+            <td>${releaseDate}</td>
+            <td class="version-cell">${tqa}</td>
+            <td class="version-cell">${uat}</td>
+            <td class="version-cell">${prod}</td>
+            <td class="truncate">${notes}</td>
+            <td>
+              <button class="btn btn-sm btn-secondary" onclick="editRelease('${r._id}')">Edit</button>
+              <button class="btn btn-sm btn-history" onclick="viewHistory('${r._id}')" ${hasHistory ? '' : 'disabled'} title="${hasHistory ? 'View history' : 'No history yet'}">History</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteRelease('${r._id}')">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderPagination(pagination) {
+      const container = document.getElementById('pagination');
+      if (pagination.pages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      for (let i = 1; i <= pagination.pages; i++) {
+        html += `<a href="#" class="page-link ${i === pagination.page ? 'active' : ''}" onclick="goToPage(${i}); return false;">${i}</a>`;
+      }
+      container.innerHTML = html;
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      loadReleases();
+    }
+
+    // Modal functions
+    let currentAttachments = [];
+
+    function openAddModal() {
+      document.getElementById('modalTitle').textContent = 'Add Release';
+      document.getElementById('releaseForm').reset();
+      document.getElementById('releaseId').value = '';
+
+      // Hide attachments section for new releases
+      document.getElementById('attachmentsSection').style.display = 'none';
+      currentAttachments = [];
+
+      document.getElementById('releaseModal').classList.remove('hidden');
+    }
+
+    async function editRelease(id) {
+      try {
+        const res = await fetch(`/api/releases/${id}`);
+        const release = await res.json();
+
+        document.getElementById('modalTitle').textContent = 'Edit Release';
+        document.getElementById('releaseId').value = release._id;
+        document.getElementById('releaseApplication').value = release.application;
+        document.getElementById('releaseDate').value = release.releaseDate ? release.releaseDate.substring(0, 10) : '';
+        document.getElementById('releaseTqa').value = release.tqa || '';
+        document.getElementById('releaseUat').value = release.uat || '';
+        document.getElementById('releaseProd').value = release.prod || '';
+        document.getElementById('releaseNotes').value = release.notes || '';
+
+        // Show attachments section and load attachments
+        document.getElementById('attachmentsSection').style.display = 'block';
+        currentAttachments = release.attachments || [];
+        renderAttachments();
+
+        document.getElementById('releaseModal').classList.remove('hidden');
+      } catch (error) {
+        alert('Failed to load release: ' + error.message);
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('releaseModal').classList.add('hidden');
+    }
+
+    async function saveRelease() {
+      const id = document.getElementById('releaseId').value;
+      const data = {
+        application: document.getElementById('releaseApplication').value,
+        releaseDate: document.getElementById('releaseDate').value || null,
+        tqa: document.getElementById('releaseTqa').value,
+        uat: document.getElementById('releaseUat').value,
+        prod: document.getElementById('releaseProd').value,
+        notes: document.getElementById('releaseNotes').value
+      };
+
+      if (!data.application) {
+        alert('Please select an application');
+        return;
+      }
+
+      try {
+        const url = id ? `/api/releases/${id}` : '/api/releases';
+        const method = id ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+
+        closeModal();
+        loadReleases();
+      } catch (error) {
+        alert('Failed to save release: ' + error.message);
+      }
+    }
+
+    async function deleteRelease(id) {
+      if (!confirm('Are you sure you want to delete this release?')) return;
+
+      try {
+        const res = await fetch(`/api/releases/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+
+        loadReleases();
+      } catch (error) {
+        alert('Failed to delete release: ' + error.message);
+      }
+    }
+
+    // History functions
+    async function viewHistory(id) {
+      try {
+        const res = await fetch(`/api/releases/${id}/history`);
+        const data = await res.json();
+
+        document.getElementById('historyModalTitle').textContent = `History: ${data.application}`;
+
+        const container = document.getElementById('historyContent');
+
+        if (!data.history || data.history.length === 0) {
+          container.innerHTML = '<div class="no-history">No history available</div>';
+        } else {
+          container.innerHTML = data.history.map(h => {
+            const changedAt = new Date(h.changedAt).toLocaleString();
+            const releaseDate = h.releaseDate ? new Date(h.releaseDate).toLocaleDateString() : '-';
+
+            return `
+              <div class="history-item">
+                <div class="history-date">Snapshot from ${changedAt}</div>
+                <div class="history-fields">
+                  <div class="history-field">
+                    <span class="history-field-label">Date:</span>
+                    <span class="history-field-value">${releaseDate}</span>
+                  </div>
+                  <div class="history-field">
+                    <span class="history-field-label">TQA:</span>
+                    <span class="history-field-value">${h.tqa || '-'}</span>
+                  </div>
+                  <div class="history-field">
+                    <span class="history-field-label">UAT:</span>
+                    <span class="history-field-value">${h.uat || '-'}</span>
+                  </div>
+                  <div class="history-field">
+                    <span class="history-field-label">PROD:</span>
+                    <span class="history-field-value">${h.prod || '-'}</span>
+                  </div>
+                </div>
+                ${h.notes ? `<div class="history-notes"><strong>Notes:</strong> ${h.notes}</div>` : ''}
+              </div>
+            `;
+          }).join('');
+        }
+
+        document.getElementById('historyModal').classList.remove('hidden');
+      } catch (error) {
+        alert('Failed to load history: ' + error.message);
+      }
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('historyModal').classList.add('hidden');
+    }
+
+    // File attachment functions
+    document.getElementById('fileInput').addEventListener('change', async function(e) {
+      const releaseId = document.getElementById('releaseId').value;
+      if (!releaseId) return;
+
+      const files = e.target.files;
+      if (files.length === 0) return;
+
+      await uploadFiles(releaseId, files);
+      e.target.value = ''; // Reset input
+    });
+
+    async function uploadFiles(releaseId, files) {
+      const progressDiv = document.getElementById('uploadProgress');
+      const progressFill = progressDiv.querySelector('.progress-fill');
+      const progressText = progressDiv.querySelector('.progress-text');
+
+      progressDiv.style.display = 'flex';
+      progressFill.style.width = '0%';
+      progressText.textContent = 'Uploading...';
+
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+
+      try {
+        const res = await fetch(`/api/releases/${releaseId}/attachments`, {
+          method: 'POST',
+          body: formData
+        });
+
+        progressFill.style.width = '100%';
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+
+        const data = await res.json();
+        progressText.textContent = `Uploaded ${files.length} file(s)`;
+
+        // Refresh attachments list
+        currentAttachments = data.attachments;
+        renderAttachments();
+
+        setTimeout(() => {
+          progressDiv.style.display = 'none';
+        }, 1500);
+
+      } catch (error) {
+        progressText.textContent = 'Upload failed: ' + error.message;
+        progressFill.style.background = 'var(--status-danger)';
+
+        setTimeout(() => {
+          progressDiv.style.display = 'none';
+          progressFill.style.background = 'var(--brand-secondary)';
+        }, 3000);
+      }
+    }
+
+    function renderAttachments() {
+      const list = document.getElementById('attachmentsList');
+      const releaseId = document.getElementById('releaseId').value;
+
+      if (!currentAttachments || currentAttachments.length === 0) {
+        list.innerHTML = '<span class="no-attachments">No attachments</span>';
+        return;
+      }
+
+      list.innerHTML = currentAttachments.map(att => {
+        const size = formatFileSize(att.size);
+        const icon = getFileIcon(att.mimetype);
+
+        return `
+          <div class="attachment-item">
+            <div class="attachment-info">
+              ${icon}
+              <span class="attachment-name" title="${att.originalName}">${att.originalName}</span>
+              <span class="attachment-size">(${size})</span>
+            </div>
+            <div class="attachment-actions">
+              <button type="button" class="btn btn-sm btn-info" onclick="downloadAttachment('${releaseId}', '${att._id}', '${att.originalName}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+              </button>
+              <button type="button" class="btn btn-sm btn-danger" onclick="deleteAttachment('${releaseId}', '${att._id}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function getFileIcon(mimetype) {
+      const iconClass = 'attachment-icon';
+      if (!mimetype) {
+        return `<svg class="${iconClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+      }
+
+      if (mimetype.startsWith('image/')) {
+        return `<svg class="${iconClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+      }
+
+      if (mimetype === 'application/pdf') {
+        return `<svg class="${iconClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
+      }
+
+      return `<svg class="${iconClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+    }
+
+    function downloadAttachment(releaseId, attachmentId, filename) {
+      const link = document.createElement('a');
+      link.href = `/api/releases/${releaseId}/attachments/${attachmentId}`;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    async function deleteAttachment(releaseId, attachmentId) {
+      if (!confirm('Are you sure you want to delete this attachment?')) return;
+
+      try {
+        const res = await fetch(`/api/releases/${releaseId}/attachments/${attachmentId}`, {
+          method: 'DELETE'
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+
+        const data = await res.json();
+        currentAttachments = data.attachments;
+        renderAttachments();
+
+      } catch (error) {
+        alert('Failed to delete attachment: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>

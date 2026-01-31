@@ -18,9 +18,10 @@
     })();
   </script>
   <style>
-    /* Wide Modal with Two-Column Layout */
+    /* Meeting Modal - Matches ASD Task Modal Design */
     .modal-meeting .modal-content {
-      max-width: 700px;
+      max-width: 800px;
+      width: 95%;
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
@@ -44,11 +45,13 @@
       background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
       color: white;
       border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-      padding: var(--space-5) var(--space-6);
+      padding: var(--space-4) var(--space-6);
     }
 
     .modal-meeting .modal-header h2 {
       color: white;
+      margin: 0;
+      font-size: 1.25rem;
     }
 
     .modal-meeting .modal-close {
@@ -60,33 +63,62 @@
       background: rgba(255, 255, 255, 0.15);
     }
 
-    .modal-grid-layout {
+    /* Two-column grid layout */
+    .task-modal-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: var(--space-6);
     }
 
-    .modal-col-left,
-    .modal-col-right {
+    .task-modal-left {
       display: flex;
       flex-direction: column;
+      gap: var(--space-3);
     }
 
-    .modal-col-right .form-group {
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+    }
+
+    .form-row .form-group {
+      margin-bottom: 0;
+    }
+
+    /* Right panel with shaded background */
+    .task-modal-right {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface-secondary);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      border: 1px solid var(--border-default);
+    }
+
+    [data-theme="dark"] .task-modal-right {
+      background: rgba(0, 0, 0, 0.2);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .task-modal-right .form-group {
       flex: 1;
       display: flex;
       flex-direction: column;
     }
 
-    .modal-col-right textarea {
+    .task-modal-right textarea {
       flex: 1;
-      min-height: 180px;
+      min-height: 150px;
       resize: vertical;
     }
 
-    @media (max-width: 600px) {
-      .modal-grid-layout {
+    @media (max-width: 700px) {
+      .task-modal-grid {
         grid-template-columns: 1fr;
+      }
+      .task-modal-right {
+        max-height: 250px;
       }
       .modal-meeting .modal-content {
         max-width: 95%;
@@ -137,47 +169,28 @@
 <body>
   <nav class="navbar">
     <div class="navbar-brand">
-      <a href="/">ASD Time Tracker</a>
+      <a href="/">ASD Tracker</a>
     </div>
     <div class="navbar-menu">
       <a href="/" class="nav-link">Dashboard</a>
-      <a href="/tasks" class="nav-link">Tasks</a>
-      <a href="/scorecard" class="nav-link">Scorecard</a>
+      <div class="nav-dropdown">
+        <button class="nav-dropdown-toggle">
+          Team
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a href="/tasks">Tasks</a>
+          <a href="/scorecard">Scorecard</a>
+        </div>
+      </div>
       <a href="/meetings" class="nav-link">Meetings</a>
       <a href="/managertasks" class="nav-link">Manager Tasks</a>
-      <button id="importBtn" class="btn btn-primary">Import Data</button>
-      <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
+      <a href="/releases" class="nav-link">Releases</a>
       <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
     </div>
   </nav>
-
-  <!-- Import Modal -->
-  <div id="importModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Import Data</h2>
-        <button class="modal-close" onclick="closeImportModal()">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="fileInput">Select Excel File (.xlsx)</label>
-          <input type="file" id="fileInput" accept=".xlsx,.xls" class="file-input">
-        </div>
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="clearDataCheckbox">
-            Clear existing data before import
-          </label>
-          <p class="help-text warning">Warning: This will delete all existing tasks, estimates, and quality scores.</p>
-        </div>
-        <p class="help-text">Select a timekeeping Excel file with '3e' and 'scorebyTFS' sheets.</p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
-        <button class="btn btn-primary" id="doImportBtn" onclick="doImport()">Import</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Add Meeting Modal -->
   <div id="meetingModal" class="modal modal-meeting hidden">
@@ -189,11 +202,18 @@
       <div class="modal-body">
         <form id="meetingForm">
           <input type="hidden" id="meetingId">
-          <div class="modal-grid-layout">
-            <div class="modal-col-left">
-              <div class="form-group">
-                <label for="meetingDate">Date</label>
-                <input type="date" id="meetingDate" required>
+          <div class="task-modal-grid">
+            <!-- Left Column: Meeting Details -->
+            <div class="task-modal-left">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="meetingDate">Date</label>
+                  <input type="date" id="meetingDate" required>
+                </div>
+                <div class="form-group">
+                  <label for="meetingDuration">Duration (hrs)</label>
+                  <input type="number" id="meetingDuration" step="0.25" min="0" required placeholder="e.g., 0.5">
+                </div>
               </div>
               <div class="form-group">
                 <label for="meetingType">Meeting Type</label>
@@ -217,18 +237,16 @@
                   <option value="Jason Fleming">Jason Fleming</option>
                   <option value="Miriah Pooler">Miriah Pooler</option>
                   <option value="Curtis Smith">Curtis Smith</option>
+                  <option value="Naga Surapaneni">Naga Surapaneni</option>
                   <option value="Claus Michelsen">Claus Michelsen</option>
                   <option value="Amy Lake">Amy Lake</option>
                   <option value="Sales">Sales</option>
                   <option value="Project Team">Project Team</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label for="meetingDuration">Duration (hours)</label>
-                <input type="number" id="meetingDuration" step="0.25" min="0" required placeholder="e.g., 0.5, 1, 1.5">
-              </div>
             </div>
-            <div class="modal-col-right">
+            <!-- Right Column: Notes -->
+            <div class="task-modal-right">
               <div class="form-group">
                 <label for="meetingSummary">Summary / Notes</label>
                 <textarea id="meetingSummary" placeholder="Key discussion points, action items, decisions made..."></textarea>
@@ -558,80 +576,6 @@
       }
     }
 
-    // Import Modal Functions
-    document.getElementById('importBtn').addEventListener('click', () => {
-      document.getElementById('importModal').classList.remove('hidden');
-    });
-
-    function closeImportModal() {
-      document.getElementById('importModal').classList.add('hidden');
-      document.getElementById('fileInput').value = '';
-      document.getElementById('clearDataCheckbox').checked = false;
-    }
-
-    async function doImport() {
-      const fileInput = document.getElementById('fileInput');
-      const clearData = document.getElementById('clearDataCheckbox').checked;
-
-      if (!fileInput.files.length) {
-        alert('Please select a file');
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', fileInput.files[0]);
-      formData.append('clearData', clearData.toString());
-
-      const btn = document.getElementById('doImportBtn');
-      btn.disabled = true;
-      btn.textContent = 'Importing...';
-
-      try {
-        const res = await fetch('/api/tfs/import', {
-          method: 'POST',
-          body: formData
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || 'Import failed');
-        }
-
-        alert(data.message);
-        closeImportModal();
-        loadMeetings();
-      } catch (error) {
-        alert('Import failed: ' + error.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Import';
-      }
-    }
-
-    // Delete All Function
-    document.getElementById('deleteAllBtn').addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to delete ALL data? This cannot be undone!')) {
-        return;
-      }
-      if (!confirm('This will delete all tasks, developers, and meetings. Are you REALLY sure?')) {
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/tfs/delete-all', { method: 'POST' });
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || 'Delete failed');
-        }
-
-        alert(data.message);
-        loadMeetings();
-      } catch (error) {
-        alert('Delete failed: ' + error.message);
-      }
-    });
   </script>
 </body>
 </html>

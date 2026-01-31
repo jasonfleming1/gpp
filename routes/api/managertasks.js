@@ -1,7 +1,39 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const ManagerTask = require('../../models/ManagerTask');
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/managertasks');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit per file
+  fileFilter: (req, file, cb) => {
+    // Allow common document and image types
+    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx|txt|csv|zip|rar/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    if (extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Invalid file type. Allowed: images, PDF, Office docs, text, archives'));
+  }
+});
 
 // ============================================
 // STATIC ROUTES FIRST
@@ -35,6 +67,17 @@ router.get('/', async (req, res) => {
       ];
     }
 
+    // Date range filtering
+    if (req.query.startDate || req.query.endDate) {
+      query.date = {};
+      if (req.query.startDate) {
+        query.date.$gte = new Date(req.query.startDate);
+      }
+      if (req.query.endDate) {
+        query.date.$lte = new Date(req.query.endDate);
+      }
+    }
+
     const sort = {};
     sort[sortField] = sortOrder;
 
@@ -60,7 +103,7 @@ router.get('/', async (req, res) => {
 // POST /api/managertasks - Create a new task
 router.post('/', async (req, res) => {
   try {
-    const { rustId, application, description, release, status, qualityMeasure } = req.body;
+    const { rustId, date, application, description, release, status, qualityMeasure } = req.body;
 
     if (!application) {
       return res.status(400).json({ error: 'Application is required' });
@@ -78,6 +121,10 @@ router.post('/', async (req, res) => {
 
     if (rustId && rustId.trim()) {
       taskData.rustId = rustId.trim();
+    }
+
+    if (date) {
+      taskData.date = new Date(date);
     }
 
     if (qualityMeasure !== undefined && qualityMeasure !== null && qualityMeasure !== '') {
@@ -243,10 +290,11 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid task ID format' });
     }
 
-    const { rustId, application, description, release, status, qualityMeasure } = req.body;
+    const { rustId, date, application, description, release, status, qualityMeasure } = req.body;
 
     const updateData = {};
     if (rustId !== undefined) updateData.rustId = rustId.trim() || null;
+    if (date !== undefined) updateData.date = date ? new Date(date) : null;
     if (application !== undefined) updateData.application = application;
     if (description !== undefined) updateData.description = description;
     if (release !== undefined) updateData.release = release;
@@ -308,6 +356,114 @@ router.post('/delete-all', async (req, res) => {
       success: true,
       message: `Deleted ${result.deletedCount} manager tasks`,
       deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// FILE ATTACHMENT ROUTES
+// ============================================
+
+// POST /api/managertasks/:id/attachments - Upload files to a task
+router.post('/:id/attachments', upload.array('files', 10), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid task ID format' });
+    }
+
+    const task = await ManagerTask.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    // Add file info to task attachments
+    const newAttachments = req.files.map(file => ({
+      filename: file.filename,
+      originalName: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      uploadedAt: new Date()
+    }));
+
+    task.attachments.push(...newAttachments);
+    await task.save();
+
+    res.json({
+      success: true,
+      message: `Uploaded ${req.files.length} file(s)`,
+      attachments: task.attachments
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/managertasks/:id/attachments/:attachmentId - Download a file
+router.get('/:id/attachments/:attachmentId', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid task ID format' });
+    }
+
+    const task = await ManagerTask.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const attachment = task.attachments.id(req.params.attachmentId);
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    const filePath = path.join(__dirname, '../../uploads/managertasks', attachment.filename);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found on server' });
+    }
+
+    res.download(filePath, attachment.originalName);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/managertasks/:id/attachments/:attachmentId - Delete a file
+router.delete('/:id/attachments/:attachmentId', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid task ID format' });
+    }
+
+    const task = await ManagerTask.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const attachment = task.attachments.id(req.params.attachmentId);
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    // Delete file from disk
+    const filePath = path.join(__dirname, '../../uploads/managertasks', attachment.filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Remove from task
+    task.attachments.pull(req.params.attachmentId);
+    await task.save();
+
+    res.json({
+      success: true,
+      message: 'Attachment deleted',
+      attachments: task.attachments
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

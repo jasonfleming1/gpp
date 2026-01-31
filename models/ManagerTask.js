@@ -1,11 +1,38 @@
 const mongoose = require('mongoose');
 
+// Schema for file attachments
+const attachmentSchema = new mongoose.Schema({
+  filename: {
+    type: String,
+    required: true
+  },
+  originalName: {
+    type: String,
+    required: true
+  },
+  mimetype: {
+    type: String
+  },
+  size: {
+    type: Number
+  },
+  uploadedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: true });
+
 const managerTaskSchema = new mongoose.Schema({
   rustId: {
     type: String,
     unique: true,
     sparse: true
   },
+  date: {
+    type: Date,
+    default: null
+  },
+  attachments: [attachmentSchema],
   application: {
     type: String,
     enum: ['ASD Manager', 'CARMS', 'RSRS', 'namelessApp', 'DESI', 'DNN', 'MailgunAPI', 'Other', 'Portal', 'SmartScan', 'SmartKey', 'WebApp', 'Process', 'Administrative'],

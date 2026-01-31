@@ -12,7 +12,7 @@ router.get('/', async (req, res) => {
     ]);
 
     res.render('home', {
-      title: 'ASD Time Tracker',
+      title: 'ASD Tracker',
       stats,
       meetingStats
     });
@@ -83,6 +83,28 @@ router.get('/managertasks', async (req, res) => {
   try {
     res.render('managertasks', {
       title: 'Manager Tasks'
+    });
+  } catch (error) {
+    res.render('error', { error: error.message });
+  }
+});
+
+// GET /releases - Releases page
+router.get('/releases', async (req, res) => {
+  try {
+    res.render('releases', {
+      title: 'Releases'
+    });
+  } catch (error) {
+    res.render('error', { error: error.message });
+  }
+});
+
+// GET /admin - Admin page
+router.get('/admin', async (req, res) => {
+  try {
+    res.render('admin', {
+      title: 'Database Admin'
     });
   } catch (error) {
     res.render('error', { error: error.message });

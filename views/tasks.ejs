@@ -270,16 +270,25 @@
 <body>
   <nav class="navbar">
     <div class="navbar-brand">
-      <a href="/">ASD Time Tracker</a>
+      <a href="/">ASD Tracker</a>
     </div>
     <div class="navbar-menu">
       <a href="/" class="nav-link">Dashboard</a>
-      <a href="/tasks" class="nav-link">Tasks</a>
-      <a href="/scorecard" class="nav-link">Scorecard</a>
+      <div class="nav-dropdown">
+        <button class="nav-dropdown-toggle">
+          Team
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a href="/tasks">Tasks</a>
+          <a href="/scorecard">Scorecard</a>
+        </div>
+      </div>
       <a href="/meetings" class="nav-link">Meetings</a>
       <a href="/managertasks" class="nav-link">Manager Tasks</a>
-      <button id="importBtn" class="btn btn-primary">Import Data</button>
-      <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
+      <a href="/releases" class="nav-link">Releases</a>
       <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
     </div>
   </nav>
@@ -323,16 +332,19 @@
           <a href="/tasks?filter=needsEstimate" class="filter-btn <%= filter === 'needsEstimate' ? 'active' : '' %>">Needs Estimate</a>
           <a href="/tasks?filter=needsQuality" class="filter-btn <%= filter === 'needsQuality' ? 'active' : '' %>">Needs Quality</a>
           <a href="/tasks?filter=complete" class="filter-btn <%= filter === 'complete' ? 'active' : '' %>">Complete</a>
-          <a href="/tasks?filter=noActual" class="filter-btn <%= filter === 'noActual' ? 'active' : '' %>">No Developer/Actual</a>
+          <a href="/tasks?filter=noActual" class="filter-btn <%= filter === 'noActual' ? 'active' : '' %>">No Actual</a>
         </div>
         <div class="search-bar">
           <select id="yearFilter" class="year-filter">
             <option value="">All Years</option>
           </select>
-          <input type="text" id="searchInput" placeholder="Search by ASD ID, title, or developer..." value="<%= search %>">
+          <input type="text" id="searchInput" placeholder="Search ASD ID, title, developer..." value="<%= search %>">
           <button id="searchBtn" class="btn btn-primary">Search</button>
-          <button id="exportBtn" class="btn btn-secondary" onclick="exportToExcel()">Export</button>
-          <button id="createBtn" class="btn btn-success" onclick="createTask()">+ Create</button>
+          <div class="toolbar-actions">
+            <button id="createBtn" class="btn btn-success" onclick="createTask()">+ Create</button>
+            <button id="exportBtn" class="btn btn-secondary" onclick="exportToExcel()">Export</button>
+            <button id="importBtn" class="btn btn-primary">Import</button>
+          </div>
         </div>
       </div>
 

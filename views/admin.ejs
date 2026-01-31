@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script>
+    (function() {
+      const saved = localStorage.getItem('theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <style>
+    .admin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--space-4);
+      margin-top: var(--space-6);
+    }
+
+    .collection-card {
+      background: var(--surface-primary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      transition: all var(--transition-fast);
+    }
+
+    .collection-card:hover {
+      border-color: var(--brand-secondary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    [data-theme="dark"] .collection-card:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .collection-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-3);
+    }
+
+    .collection-name {
+      font-size: var(--font-size-lg);
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: monospace;
+    }
+
+    .collection-count {
+      background: var(--brand-secondary);
+      color: white;
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-full);
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+    }
+
+    .collection-actions {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .collection-actions .btn {
+      flex: 1;
+      min-width: 70px;
+      font-size: var(--font-size-xs);
+      padding: var(--space-1) var(--space-2);
+    }
+
+    .db-stats {
+      background: var(--surface-secondary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: var(--space-4);
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--brand-secondary);
+    }
+
+    .stat-label {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      margin-top: var(--space-1);
+    }
+
+    /* Import Modal */
+    .modal-admin .modal-content {
+      max-width: 600px;
+    }
+
+    .modal-admin .modal-header {
+      background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+      color: white;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      padding: var(--space-4) var(--space-6);
+    }
+
+    .modal-admin .modal-header h2 {
+      color: white;
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    .modal-admin .modal-close {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .modal-admin .modal-close:hover {
+      color: white;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .file-drop-zone {
+      border: 2px dashed var(--border-default);
+      border-radius: var(--radius-lg);
+      padding: var(--space-8);
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .file-drop-zone:hover,
+    .file-drop-zone.dragover {
+      border-color: var(--brand-secondary);
+      background: rgba(5, 113, 150, 0.05);
+    }
+
+    .file-drop-zone input {
+      display: none;
+    }
+
+    .file-drop-zone svg {
+      width: 48px;
+      height: 48px;
+      color: var(--text-muted);
+      margin-bottom: var(--space-2);
+    }
+
+    .file-drop-zone p {
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    .file-selected {
+      margin-top: var(--space-3);
+      padding: var(--space-3);
+      background: var(--surface-secondary);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+    }
+
+    .import-options {
+      margin-top: var(--space-4);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border-default);
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: var(--font-size-sm);
+      margin-bottom: var(--space-4);
+      transition: color var(--transition-fast);
+    }
+
+    .back-link:hover {
+      color: var(--brand-secondary);
+    }
+
+    .back-link svg {
+      width: 16px;
+      height: 16px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/">ASD Tracker</a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/" class="nav-link">Dashboard</a>
+      <div class="nav-dropdown">
+        <button class="nav-dropdown-toggle">
+          Team
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a href="/tasks">Tasks</a>
+          <a href="/scorecard">Scorecard</a>
+        </div>
+      </div>
+      <a href="/meetings" class="nav-link">Meetings</a>
+      <a href="/managertasks" class="nav-link">Manager Tasks</a>
+      <a href="/releases" class="nav-link">Releases</a>
+      <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
+    </div>
+  </nav>
+
+  <!-- Import Modal -->
+  <div id="importModal" class="modal modal-admin hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="importModalTitle">Import Data</h2>
+        <button class="modal-close" onclick="closeImportModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="importCollection">
+        <div class="file-drop-zone" id="dropZone" onclick="document.getElementById('jsonFileInput').click()">
+          <input type="file" id="jsonFileInput" accept=".json" onchange="handleFileSelect(event)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+          </svg>
+          <p>Click to select or drag and drop a JSON file</p>
+        </div>
+        <div id="fileSelected" class="file-selected" style="display: none;">
+          <strong>Selected:</strong> <span id="selectedFileName"></span>
+          <br><span id="selectedFileInfo"></span>
+        </div>
+        <div class="import-options">
+          <label class="checkbox-label">
+            <input type="checkbox" id="clearExisting">
+            Clear existing data before import
+          </label>
+          <p class="help-text warning" style="margin-top: var(--space-2);">Warning: This will delete all existing documents in this collection.</p>
+          <label class="checkbox-label" style="margin-top: var(--space-2);">
+            <input type="checkbox" id="preserveIds">
+            Preserve original document IDs
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+        <button class="btn btn-primary" id="doImportBtn" onclick="doImport()" disabled>Import</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="container">
+    <div class="dashboard">
+      <a href="/managertasks" class="back-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Back to Manager Tasks
+      </a>
+
+      <div class="page-header">
+        <h1>Database Admin</h1>
+      </div>
+
+      <!-- Database Stats -->
+      <div class="db-stats" id="dbStats">
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-value" id="statCollections">-</div>
+            <div class="stat-label">Collections</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="statDocuments">-</div>
+            <div class="stat-label">Documents</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="statDataSize">-</div>
+            <div class="stat-label">Data Size</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="statIndexes">-</div>
+            <div class="stat-label">Indexes</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collections Grid -->
+      <div id="collectionsGrid" class="admin-grid">
+        <div class="collection-card">
+          <div class="skeleton-cell title"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    let selectedFile = null;
+    let parsedData = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadStats();
+      loadCollections();
+      setupDragDrop();
+    });
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/admin/stats');
+        const stats = await res.json();
+
+        document.getElementById('statCollections').textContent = stats.collections;
+        document.getElementById('statDocuments').textContent = stats.documents.toLocaleString();
+        document.getElementById('statDataSize').textContent = formatBytes(stats.dataSize);
+        document.getElementById('statIndexes').textContent = stats.indexes;
+      } catch (error) {
+        console.error('Failed to load stats:', error);
+      }
+    }
+
+    // Collections that support file attachments
+    const collectionsWithAttachments = ['managertasks', 'releases'];
+
+    async function loadCollections() {
+      try {
+        const res = await fetch('/api/admin/collections');
+        const collections = await res.json();
+
+        const grid = document.getElementById('collectionsGrid');
+        grid.innerHTML = collections.map(col => {
+          const hasAttachments = collectionsWithAttachments.includes(col.name);
+          const exportButtons = hasAttachments
+            ? `<button class="btn btn-sm btn-info" onclick="exportCollection('${col.name}', false)">Export</button>
+               <button class="btn btn-sm btn-info" onclick="exportCollection('${col.name}', true)" title="Include attachment files">Export + Files</button>`
+            : `<button class="btn btn-sm btn-info" onclick="exportCollection('${col.name}', false)">Export JSON</button>`;
+
+          return `
+            <div class="collection-card">
+              <div class="collection-header">
+                <span class="collection-name">${col.name}</span>
+                <span class="collection-count">${col.count.toLocaleString()}</span>
+              </div>
+              ${hasAttachments ? '<div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">Supports file attachments</div>' : ''}
+              <div class="collection-actions">
+                ${exportButtons}
+                <button class="btn btn-sm btn-secondary" onclick="openImportModal('${col.name}')">
+                  Import
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="clearCollection('${col.name}')" ${col.count === 0 ? 'disabled' : ''}>
+                  Clear
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (error) {
+        console.error('Failed to load collections:', error);
+        document.getElementById('collectionsGrid').innerHTML = '<p class="error">Failed to load collections</p>';
+      }
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function exportCollection(name, includeAttachments = false) {
+      let url = `/api/admin/export/${name}`;
+      if (includeAttachments) {
+        url += '?includeAttachments=true';
+      }
+      window.location.href = url;
+    }
+
+    function openImportModal(name) {
+      document.getElementById('importCollection').value = name;
+      document.getElementById('importModalTitle').textContent = `Import to ${name}`;
+      document.getElementById('jsonFileInput').value = '';
+      document.getElementById('fileSelected').style.display = 'none';
+      document.getElementById('doImportBtn').disabled = true;
+      document.getElementById('clearExisting').checked = false;
+      document.getElementById('preserveIds').checked = false;
+      selectedFile = null;
+      parsedData = null;
+      document.getElementById('importModal').classList.remove('hidden');
+    }
+
+    function closeImportModal() {
+      document.getElementById('importModal').classList.add('hidden');
+    }
+
+    function setupDragDrop() {
+      const dropZone = document.getElementById('dropZone');
+
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+      });
+
+      dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+      });
+
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].type === 'application/json') {
+          handleFile(files[0]);
+        }
+      });
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        handleFile(file);
+      }
+    }
+
+    function handleFile(file) {
+      selectedFile = file;
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        try {
+          parsedData = JSON.parse(e.target.result);
+
+          // Handle both formats: { documents: [...] } or direct array
+          let docs = parsedData.documents || parsedData;
+          if (!Array.isArray(docs)) {
+            docs = [docs];
+          }
+
+          document.getElementById('selectedFileName').textContent = file.name;
+          document.getElementById('selectedFileInfo').textContent = `${docs.length} document(s) found`;
+          document.getElementById('fileSelected').style.display = 'block';
+          document.getElementById('doImportBtn').disabled = false;
+
+          // Store the documents for import
+          parsedData = { documents: docs };
+
+        } catch (error) {
+          alert('Invalid JSON file: ' + error.message);
+          selectedFile = null;
+          parsedData = null;
+        }
+      };
+
+      reader.readAsText(file);
+    }
+
+    async function doImport() {
+      const collection = document.getElementById('importCollection').value;
+      const clearExisting = document.getElementById('clearExisting').checked;
+      const preserveIds = document.getElementById('preserveIds').checked;
+      const btn = document.getElementById('doImportBtn');
+
+      if (!parsedData || !parsedData.documents) {
+        alert('No valid data to import');
+        return;
+      }
+
+      if (clearExisting) {
+        if (!confirm(`This will DELETE all existing data in "${collection}" before importing. Continue?`)) {
+          return;
+        }
+      }
+
+      try {
+        btn.textContent = 'Importing...';
+        btn.disabled = true;
+
+        const res = await fetch(`/api/admin/import/${collection}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            documents: parsedData.documents,
+            clearExisting,
+            preserveIds
+          })
+        });
+
+        const result = await res.json();
+
+        if (!res.ok) {
+          throw new Error(result.error || 'Import failed');
+        }
+
+        alert(result.message);
+        closeImportModal();
+        loadCollections();
+        loadStats();
+
+      } catch (error) {
+        alert('Import error: ' + error.message);
+      } finally {
+        btn.textContent = 'Import';
+        btn.disabled = false;
+      }
+    }
+
+    async function clearCollection(name) {
+      if (!confirm(`Are you sure you want to delete ALL documents in "${name}"? This cannot be undone.`)) {
+        return;
+      }
+
+      if (!confirm(`Final confirmation: Delete everything in "${name}"?`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/admin/collections/${name}`, {
+          method: 'DELETE'
+        });
+
+        const result = await res.json();
+
+        if (!res.ok) {
+          throw new Error(result.error || 'Delete failed');
+        }
+
+        alert(result.message);
+        loadCollections();
+        loadStats();
+
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -56,46 +56,28 @@
 <body>
   <nav class="navbar">
     <div class="navbar-brand">
-      <a href="/">ASD Time Tracker</a>
+      <a href="/">ASD Tracker</a>
     </div>
     <div class="navbar-menu">
       <a href="/" class="nav-link">Dashboard</a>
-      <a href="/tasks" class="nav-link">Tasks</a>
-      <a href="/scorecard" class="nav-link">Scorecard</a>
+      <div class="nav-dropdown">
+        <button class="nav-dropdown-toggle">
+          Team
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a href="/tasks">Tasks</a>
+          <a href="/scorecard">Scorecard</a>
+        </div>
+      </div>
       <a href="/meetings" class="nav-link">Meetings</a>
       <a href="/managertasks" class="nav-link">Manager Tasks</a>
-      <button id="importBtn" class="btn btn-primary">Import Data</button>
-      <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
+      <a href="/releases" class="nav-link">Releases</a>
       <button id="themeToggle" class="theme-toggle" title="Toggle theme"></button>
     </div>
   </nav>
-
-  <div id="importModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Import Data</h2>
-        <button class="modal-close" onclick="closeImportModal()">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="fileInput">Select Excel File (.xlsx)</label>
-          <input type="file" id="fileInput" accept=".xlsx,.xls" class="file-input">
-        </div>
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="clearDataCheckbox">
-            Clear existing data before import
-          </label>
-          <p class="help-text warning">Warning: This will delete all existing tasks, estimates, and quality scores.</p>
-        </div>
-        <p class="help-text">Select a timekeeping Excel file with '3e' and 'scorebyTFS' sheets.</p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
-        <button class="btn btn-primary" id="doImportBtn" onclick="doImport()">Import</button>
-      </div>
-    </div>
-  </div>
 
   <main class="container">
     <div class="scorecard-page">
