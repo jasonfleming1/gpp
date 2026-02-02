@@ -147,7 +147,9 @@ router.post('/', async (req, res) => {
     // Build time entries and developer breakdown from developers array
     const timeEntries = [];
     const developerBreakdown = {};
+    const developerBreakdownByDate = {};
     let totalActualHours = 0;
+    const dateOnly = entryDate.toISOString().split('T')[0];
 
     if (developers && Array.isArray(developers)) {
       developers.forEach(dev => {
@@ -162,6 +164,7 @@ router.post('/', async (req, res) => {
             lastName,
             title: '',
             workDate: entryDate,
+            workDateOnly: dateOnly,
             workHrs: dev.hours,
             narrative: 'Manually entered',
             activityCode: '',
@@ -169,6 +172,7 @@ router.post('/', async (req, res) => {
           });
 
           developerBreakdown[dev.name] = dev.hours;
+          developerBreakdownByDate[dev.name] = { [dateOnly]: dev.hours };
           totalActualHours += dev.hours;
         }
       });
@@ -184,7 +188,8 @@ router.post('/', async (req, res) => {
       quality: quality ? parseInt(quality) : null,
       timeEntries,
       totalActualHours: finalActualHours,
-      developerBreakdown
+      developerBreakdown,
+      developerBreakdownByDate
     });
 
     res.status(201).json(task);
@@ -304,6 +309,11 @@ router.post('/import', upload.single('file'), async (req, res) => {
           developerBreakdown[name] = hours;
         });
 
+        const developerBreakdownByDate = {};
+        taskData.developerBreakdownByDate.forEach((dates, name) => {
+          developerBreakdownByDate[name] = dates;
+        });
+
         await TfsTask.create({
           tfsId: taskData.tfsId,
           title: taskTitle,
@@ -311,7 +321,8 @@ router.post('/import', upload.single('file'), async (req, res) => {
           quality: taskData.quality,
           timeEntries: taskData.timeEntries,
           totalActualHours: taskData.totalActualHours,
-          developerBreakdown
+          developerBreakdown,
+          developerBreakdownByDate
         });
         imported++;
       }
@@ -830,7 +841,9 @@ router.put('/:id', async (req, res) => {
     if (developers && Array.isArray(developers)) {
       const timeEntries = [];
       const developerBreakdown = {};
+      const developerBreakdownByDate = {};
       let totalActualHours = 0;
+      const dateOnly = entryDate.toISOString().split('T')[0];
 
       developers.forEach(dev => {
         if (dev.name && dev.hours > 0) {
@@ -844,6 +857,7 @@ router.put('/:id', async (req, res) => {
             lastName,
             title: '',
             workDate: entryDate,
+            workDateOnly: dateOnly,
             workHrs: dev.hours,
             narrative: 'Manually entered',
             activityCode: '',
@@ -851,12 +865,14 @@ router.put('/:id', async (req, res) => {
           });
 
           developerBreakdown[dev.name] = dev.hours;
+          developerBreakdownByDate[dev.name] = { [dateOnly]: dev.hours };
           totalActualHours += dev.hours;
         }
       });
 
       task.timeEntries = timeEntries;
       task.developerBreakdown = developerBreakdown;
+      task.developerBreakdownByDate = developerBreakdownByDate;
       task.totalActualHours = actualHours ? parseFloat(actualHours) : totalActualHours;
     } else if (actualHours !== undefined) {
       // Update just actualHours if no developers provided
@@ -904,7 +920,14 @@ router.get('/:id/developers', async (req, res) => {
     if (task.developerBreakdown) {
       // developerBreakdown is stored as an object, not a Map
       Object.entries(task.developerBreakdown).forEach(([name, hours]) => {
-        breakdown.push({ name, hours: parseFloat(hours).toFixed(2) });
+        const byDate = task.developerBreakdownByDate?.[name] || {};
+        breakdown.push({
+          name,
+          hours: parseFloat(hours).toFixed(2),
+          byDate: Object.entries(byDate)
+            .map(([date, hrs]) => ({ date, hours: parseFloat(hrs).toFixed(2) }))
+            .sort((a, b) => a.date.localeCompare(b.date))
+        });
       });
     }
 

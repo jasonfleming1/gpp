@@ -104,19 +104,35 @@
                 <th>Developer</th>
                 <th>Hours</th>
                 <th>% of Total</th>
+                <th>Date Breakdown</th>
               </tr>
             </thead>
             <tbody>
               <% if (task.developerBreakdown && task.developerBreakdown.size > 0) { %>
                 <% task.developerBreakdown.forEach(function(hours, name) { %>
+                  <% const byDate = task.developerBreakdownByDate ? task.developerBreakdownByDate.get(name) : null; %>
                   <tr>
                     <td><%= name %></td>
                     <td><%= hours.toFixed(2) %></td>
                     <td><%= ((hours / task.totalActualHours) * 100).toFixed(1) %>%</td>
+                    <td class="date-breakdown">
+                      <% if (byDate && Object.keys(byDate).length > 0) { %>
+                        <details>
+                          <summary><%= Object.keys(byDate).length %> date(s)</summary>
+                          <ul class="date-list">
+                            <% Object.entries(byDate).sort((a,b) => a[0].localeCompare(b[0])).forEach(function([date, hrs]) { %>
+                              <li><span class="date-label"><%= date %></span>: <%= hrs.toFixed(2) %>h</li>
+                            <% }); %>
+                          </ul>
+                        </details>
+                      <% } else { %>
+                        -
+                      <% } %>
+                    </td>
                   </tr>
                 <% }); %>
               <% } else { %>
-                <tr><td colspan="3">No time entries</td></tr>
+                <tr><td colspan="4">No time entries</td></tr>
               <% } %>
             </tbody>
           </table>
@@ -137,7 +153,7 @@
             <tbody>
               <% task.timeEntries.slice(0, 50).forEach(function(entry) { %>
                 <tr>
-                  <td><%= new Date(entry.workDate).toLocaleDateString() %></td>
+                  <td><%= entry.workDateOnly || new Date(entry.workDate).toISOString().split('T')[0] %></td>
                   <td><%= entry.firstName %> <%= entry.lastName %></td>
                   <td><%= entry.workHrs.toFixed(2) %></td>
                   <td><%= entry.activityCodeDesc || '-' %></td>

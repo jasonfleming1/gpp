@@ -1329,6 +1329,43 @@ td.negative {
   border: 1px solid var(--border-subtle);
 }
 
+/* Date Breakdown in Developer Section */
+.date-breakdown {
+  font-size: var(--font-size-sm);
+}
+
+.date-breakdown details {
+  cursor: pointer;
+}
+
+.date-breakdown summary {
+  color: var(--interactive-primary);
+  font-weight: 500;
+}
+
+.date-breakdown summary:hover {
+  text-decoration: underline;
+}
+
+.date-list {
+  list-style: none;
+  margin-top: var(--space-2);
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--border-default);
+}
+
+.date-list li {
+  padding: var(--space-1) 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.date-list .date-label {
+  font-family: monospace;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
 /* =================================
    PAGINATION
    ================================= */

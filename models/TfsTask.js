@@ -6,6 +6,7 @@ const timeEntrySchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   title: String,
   workDate: { type: Date, required: true },
+  workDateOnly: { type: String },  // Date-only string (YYYY-MM-DD)
   workHrs: { type: Number, required: true },
   narrative: String,
   activityCode: String,
@@ -48,6 +49,12 @@ const tfsTaskSchema = new mongoose.Schema({
     type: Map,
     of: Number,
     default: new Map()
+  },
+  // Per-date breakdown: { "Developer Name": { "2025-04-02": 8.5, "2025-04-03": 6.0 } }
+  developerBreakdownByDate: {
+    type: Map,
+    of: mongoose.Schema.Types.Mixed,
+    default: new Map()
   }
 }, {
   timestamps: true
@@ -70,11 +77,25 @@ tfsTaskSchema.methods.recalculateTotals = function() {
   this.totalActualHours = this.timeEntries.reduce((sum, entry) => sum + entry.workHrs, 0);
 
   const breakdown = new Map();
+  const breakdownByDate = new Map();
+
   this.timeEntries.forEach(entry => {
     const key = `${entry.firstName} ${entry.lastName}`;
     breakdown.set(key, (breakdown.get(key) || 0) + entry.workHrs);
+
+    // Calculate per-date breakdown
+    const dateStr = entry.workDateOnly || (entry.workDate ? new Date(entry.workDate).toISOString().split('T')[0] : null);
+    if (dateStr) {
+      if (!breakdownByDate.has(key)) {
+        breakdownByDate.set(key, {});
+      }
+      const devDates = breakdownByDate.get(key);
+      devDates[dateStr] = (devDates[dateStr] || 0) + entry.workHrs;
+    }
   });
+
   this.developerBreakdown = breakdown;
+  this.developerBreakdownByDate = breakdownByDate;
 
   return this;
 };

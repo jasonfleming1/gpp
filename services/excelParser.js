@@ -121,7 +121,8 @@ class ExcelParser {
           tfsIdNotEntered,
           timeEntries: [],
           totalActualHours: 0,
-          developerBreakdown: new Map()
+          developerBreakdown: new Map(),
+          developerBreakdownByDate: new Map()
         });
       }
 
@@ -131,12 +132,16 @@ class ExcelParser {
         task.title = row.MatterName;
       }
 
+      const parsedDate = this.parseExcelDate(row.WorkDate);
+      const dateOnly = parsedDate ? parsedDate.toISOString().split('T')[0] : null;
+
       const entry = {
         timekeeperNumber: row.TimekeeperNumber,
         lastName: row.LastName,
         firstName: row.FirstName,
         title: row.Title,
-        workDate: this.parseExcelDate(row.WorkDate),
+        workDate: parsedDate,
+        workDateOnly: dateOnly,
         workHrs: row.WorkHrs || 0,
         narrative: row.TimecardNarrative,
         activityCode: row.ActivityCode,
@@ -151,6 +156,15 @@ class ExcelParser {
         devKey,
         (task.developerBreakdown.get(devKey) || 0) + entry.workHrs
       );
+
+      // Build per-date breakdown
+      if (dateOnly) {
+        if (!task.developerBreakdownByDate.has(devKey)) {
+          task.developerBreakdownByDate.set(devKey, {});
+        }
+        const devDates = task.developerBreakdownByDate.get(devKey);
+        devDates[dateOnly] = (devDates[dateOnly] || 0) + entry.workHrs;
+      }
     });
 
     return Array.from(taskMap.values());
@@ -196,7 +210,8 @@ class ExcelParser {
         quality: score.quality,
         timeEntries: [],
         totalActualHours: 0,
-        developerBreakdown: new Map()
+        developerBreakdown: new Map(),
+        developerBreakdownByDate: new Map()
       });
     });
 
