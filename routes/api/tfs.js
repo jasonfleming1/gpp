@@ -252,18 +252,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
     let updated = 0;
     const developerMap = new Map();
 
-    let skippedMiriah = 0;
     for (const taskData of mergedData) {
-      // Check if Miriah Pooler has entries on this task - skip entirely if so
-      const hasMiriahPooler = taskData.timeEntries.some(
-        entry => entry.firstName === 'Miriah' && entry.lastName === 'Pooler'
-      );
-
-      if (hasMiriahPooler) {
-        skippedMiriah++;
-        continue;
-      }
-
       for (const entry of taskData.timeEntries) {
         const key = entry.timekeeperNumber;
         if (!developerMap.has(key)) {
@@ -350,11 +339,10 @@ router.post('/import', upload.single('file'), async (req, res) => {
 
     res.json({
       success: true,
-      message: `Import complete: ${imported} new tasks, ${updated} updated, ${developerMap.size} developers${skippedMiriah > 0 ? `, ${skippedMiriah} Miriah Pooler tasks excluded` : ''}`,
+      message: `Import complete: ${imported} new tasks, ${updated} updated, ${developerMap.size} developers`,
       imported,
       updated,
-      developers: developerMap.size,
-      skippedMiriah
+      developers: developerMap.size
     });
   } catch (error) {
     if (req.file && fs.existsSync(req.file.path)) {

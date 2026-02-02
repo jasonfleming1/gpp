@@ -67,7 +67,7 @@ class ExcelParser {
   }
 
   // Extract TFS ID from narrative text
-  // Patterns: "TFS Task 19479", "TFS 19455", "Task 19532", "19542 - description"
+  // Patterns: "TFS Task 19479", "TFS 19455", "Task 19532", "19542 - description", "^ 19626"
   extractTfsId(narrative) {
     if (!narrative) return null;
 
@@ -76,13 +76,19 @@ class ExcelParser {
       /TFS\s+(\d+)/i,           // TFS 19455
       /Task\s+(\d+)/i,          // Task 19532
       /^(\d{5})\s*[-–]/,        // 19542 - description (5 digit ID at start)
-      /<[^>]*>.*?(\d{5})/       // ID inside HTML tags
+      /\^\s*(\d{5})\b/,         // ^ 19626 or ^19626 (ID after caret)
+      />\s*\^\s*(\d{5})\b/,     // </p>^ 19626 (ID after closing tag and caret)
+      /(?:^|[>\s])(\d{5})\s+\w/  // Standalone 5-digit ID followed by text (fallback)
     ];
 
     for (const pattern of patterns) {
       const match = narrative.match(pattern);
       if (match) {
-        return parseInt(match[1], 10);
+        const id = parseInt(match[1], 10);
+        // Validate it looks like a TFS ID (5 digits, typically 19xxx range)
+        if (id >= 10000 && id <= 99999) {
+          return id;
+        }
       }
     }
 
