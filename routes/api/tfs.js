@@ -114,7 +114,22 @@ router.get('/', async (req, res) => {
       if (task.developerBreakdown) {
         Object.keys(task.developerBreakdown).forEach(name => devNames.push(name));
       }
-      return { ...task, developers: devNames };
+
+      // Calculate date range from time entries
+      let firstDate = null;
+      let lastDate = null;
+      if (task.timeEntries && task.timeEntries.length > 0) {
+        const dates = task.timeEntries
+          .map(e => e.workDateOnly || (e.workDate ? new Date(e.workDate).toISOString().split('T')[0] : null))
+          .filter(d => d)
+          .sort();
+        if (dates.length > 0) {
+          firstDate = dates[0];
+          lastDate = dates[dates.length - 1];
+        }
+      }
+
+      return { ...task, developers: devNames, firstDate, lastDate };
     });
 
     res.json({

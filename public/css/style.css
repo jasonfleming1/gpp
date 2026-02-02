@@ -764,6 +764,13 @@ body::after {
   color: var(--text-tertiary);
 }
 
+.data-table .date-cell {
+  font-size: var(--font-size-xs);
+  font-family: monospace;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 /* Variance Colors */
 td.positive {
   color: var(--semantic-success);
