@@ -840,8 +840,13 @@ router.put('/:id', async (req, res) => {
       task.quality = quality === '' || quality === null ? null : parseInt(quality);
     }
 
-    // Update developers - replace time entries and breakdown with new developer data
-    if (developers && Array.isArray(developers)) {
+    // Update developers - only replace time entries if task has no imported data
+    // (i.e., was manually created or has no time entries)
+    const hasImportedData = task.timeEntries && task.timeEntries.length > 0 &&
+      task.timeEntries.some(e => e.narrative !== 'Manually entered');
+
+    if (developers && Array.isArray(developers) && !hasImportedData) {
+      // Task was manually created - safe to replace time entries
       const timeEntries = [];
       const developerBreakdown = {};
       const developerBreakdownByDate = {};
@@ -877,10 +882,12 @@ router.put('/:id', async (req, res) => {
       task.developerBreakdown = developerBreakdown;
       task.developerBreakdownByDate = developerBreakdownByDate;
       task.totalActualHours = actualHours ? parseFloat(actualHours) : totalActualHours;
-    } else if (actualHours !== undefined) {
-      // Update just actualHours if no developers provided
+    } else if (actualHours !== undefined && !hasImportedData) {
+      // Update just actualHours if no developers provided and no imported data
       task.totalActualHours = actualHours === '' || actualHours === null ? 0 : parseFloat(actualHours);
     }
+    // If task has imported data, we only update estimated/quality/title (done above)
+    // The time entries, developer breakdown, and dates are preserved
 
     await task.save();
     res.json(task);

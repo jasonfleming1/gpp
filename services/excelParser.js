@@ -95,10 +95,12 @@ class ExcelParser {
     return null;
   }
 
-  // Parse the 3e timesheet data and group by TFS ID or MatterNumber
+  // Parse the 3e timesheet data and group by TFS ID
+  // Non-TFS entries (no TFS ID found) become standalone tasks with unique negative IDs
   parseTimesheetData() {
     const data = this.parseSheet('3e');
     const taskMap = new Map();
+    let standaloneCounter = -1; // Negative IDs for non-TFS entries
 
     data.forEach(row => {
       // Skip PTO, Holiday, and other non-work entries
@@ -106,16 +108,26 @@ class ExcelParser {
         return;
       }
 
-      // Try to extract TFS ID first, fall back to MatterNumber
+      // Skip Miriah Pooler's time entries
+      if (row.FirstName === 'Miriah' && row.LastName === 'Pooler') {
+        return;
+      }
+
+      // Try to extract TFS ID
       let taskId = this.extractTfsId(row.TimecardNarrative);
       let title = '';
       let tfsIdNotEntered = false;
 
       if (!taskId) {
-        // Use MatterNumber as the task ID for non-TFS entries
-        taskId = row.MatterNumber;
+        // No TFS ID found - create standalone entry with unique negative ID
+        taskId = standaloneCounter--;
         title = row.MatterName || '';
         tfsIdNotEntered = true;
+
+        // For standalone entries, include developer and date in title for clarity
+        const devName = `${row.FirstName} ${row.LastName}`;
+        const dateStr = this.parseExcelDate(row.WorkDate)?.toISOString().split('T')[0] || '';
+        title = `${title} - ${devName} (${dateStr})`.trim();
       }
 
       if (!taskId) return;
@@ -125,6 +137,7 @@ class ExcelParser {
           tfsId: taskId,
           title,
           tfsIdNotEntered,
+          matterNumber: row.MatterNumber, // Preserve original matter number
           timeEntries: [],
           totalActualHours: 0,
           developerBreakdown: new Map(),
