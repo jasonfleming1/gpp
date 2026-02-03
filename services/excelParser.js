@@ -76,8 +76,8 @@ class ExcelParser {
       /TFS\s+(\d+)/i,           // TFS 19455
       /Task\s+(\d+)/i,          // Task 19532
       /^(\d{5})\s*[-–]/,        // 19542 - description (5 digit ID at start)
-      /\^\s*(\d{5})\b/,         // ^ 19626 or ^19626 (ID after caret)
-      />\s*\^\s*(\d{5})\b/,     // </p>^ 19626 (ID after closing tag and caret)
+      /\^\s*(\d{5})(?:\s|[A-Za-z]|$)/, // ^ 19626 or ^19591Update (ID after caret, followed by space, letter, or end)
+      />\s*\^\s*(\d{5})(?:\s|[A-Za-z]|$)/, // </p>^ 19626 (ID after closing tag and caret)
       /(?:^|[>\s])(\d{5})\s+\w/  // Standalone 5-digit ID followed by text (fallback)
     ];
 
@@ -95,13 +95,31 @@ class ExcelParser {
     return null;
   }
 
-  // Parse the 3e timesheet data and group by TFS ID
-  // Non-TFS entries (no TFS ID found) become standalone tasks with unique negative IDs
+  // Parse the 3e timesheet data
+  // Grouping rules:
+  // 1. TFS ID entries: Group by TFS ID + Developer (one task per developer per TFS ID)
+  // 2. Non-TFS entries: Group by Developer + Date (one task per developer per day)
   parseTimesheetData() {
     const data = this.parseSheet('3e');
     const taskMap = new Map();
-    let standaloneCounter = -1; // Negative IDs for non-TFS entries
+    let generatedIdCounter = -1; // Negative IDs for generated task IDs
 
+    // Track which TFS IDs have multiple developers (for ID generation)
+    const tfsDevCount = new Map(); // tfsId -> Set of developer names
+
+    // First pass: count developers per TFS ID
+    data.forEach(row => {
+      if (this.shouldSkipActivity(row.ActivityCodeDesc)) return;
+      if (row.FirstName === 'Miriah' && row.LastName === 'Pooler') return;
+
+      const tfsId = this.extractTfsId(row.TimecardNarrative);
+      if (tfsId) {
+        if (!tfsDevCount.has(tfsId)) tfsDevCount.set(tfsId, new Set());
+        tfsDevCount.get(tfsId).add(`${row.FirstName} ${row.LastName}`);
+      }
+    });
+
+    // Second pass: create tasks
     data.forEach(row => {
       // Skip PTO, Holiday, and other non-work entries
       if (this.shouldSkipActivity(row.ActivityCodeDesc)) {
@@ -113,31 +131,46 @@ class ExcelParser {
         return;
       }
 
-      // Try to extract TFS ID
-      let taskId = this.extractTfsId(row.TimecardNarrative);
+      const devName = `${row.FirstName} ${row.LastName}`;
+      const dateStr = this.parseExcelDate(row.WorkDate)?.toISOString().split('T')[0] || '';
+
+      // Try to extract TFS ID from narrative
+      let tfsId = this.extractTfsId(row.TimecardNarrative);
+      let mapKey;
+      let taskId;
       let title = '';
       let tfsIdNotEntered = false;
+      let originalTfsId = null; // Store original TFS ID for reference
 
-      if (!taskId) {
-        // No TFS ID found - create standalone entry with unique negative ID
-        taskId = standaloneCounter--;
-        title = row.MatterName || '';
+      if (tfsId) {
+        const devCount = tfsDevCount.get(tfsId)?.size || 1;
+        if (devCount === 1) {
+          // Single developer - use TFS ID directly
+          mapKey = `tfs-${tfsId}`;
+          taskId = tfsId;
+        } else {
+          // Multiple developers - generate unique ID per developer, store original TFS ID
+          mapKey = `tfs-${tfsId}-${devName}`;
+          originalTfsId = tfsId;
+          taskId = generatedIdCounter--;
+          title = `[TFS ${tfsId}] - ${devName}`;
+        }
+      } else {
+        // No TFS ID - each entry becomes its own task (no grouping)
+        // This preserves activity type granularity for reporting
+        mapKey = `orphan-${generatedIdCounter}`;
+        taskId = generatedIdCounter--;
+        title = `${row.MatterName || 'Unknown'} - ${devName} (${dateStr})`;
         tfsIdNotEntered = true;
-
-        // For standalone entries, include developer and date in title for clarity
-        const devName = `${row.FirstName} ${row.LastName}`;
-        const dateStr = this.parseExcelDate(row.WorkDate)?.toISOString().split('T')[0] || '';
-        title = `${title} - ${devName} (${dateStr})`.trim();
       }
 
-      if (!taskId) return;
-
-      if (!taskMap.has(taskId)) {
-        taskMap.set(taskId, {
+      if (!taskMap.has(mapKey)) {
+        taskMap.set(mapKey, {
           tfsId: taskId,
+          originalTfsId, // Reference to original TFS ID when split by developer
           title,
           tfsIdNotEntered,
-          matterNumber: row.MatterNumber, // Preserve original matter number
+          matterNumber: row.MatterNumber,
           timeEntries: [],
           totalActualHours: 0,
           developerBreakdown: new Map(),
@@ -145,8 +178,8 @@ class ExcelParser {
         });
       }
 
-      const task = taskMap.get(taskId);
-      // Update title if we have a better one (MatterName for non-TFS entries)
+      const task = taskMap.get(mapKey);
+      // Update title if we have a better one
       if (!task.title && row.MatterName) {
         task.title = row.MatterName;
       }

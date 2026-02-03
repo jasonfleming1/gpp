@@ -242,8 +242,12 @@ router.get('/', async (req, res) => {
       );
     }
 
-    // Map dateRange sort to firstDate
-    const actualSortField = sortField === 'dateRange' ? 'firstDate' : sortField;
+    // Map dateRange sort to firstDate (ascending) or lastDate (descending)
+    // Ascending: oldest work first (by firstDate)
+    // Descending: most recent activity first (by lastDate)
+    const actualSortField = sortField === 'dateRange'
+      ? (sortOrder === 1 ? 'firstDate' : 'lastDate')
+      : sortField;
     const sort = {};
     sort[actualSortField] = sortOrder;
 
