@@ -520,7 +520,7 @@
 
         document.getElementById('meetingModal').classList.remove('hidden');
       } catch (error) {
-        alert('Failed to load meeting: ' + error.message);
+        alertManager.showAlert('Failed to load meeting: ' + error.message, 'error');
       }
     }
 
@@ -556,24 +556,29 @@
         closeModal();
         loadMeetings();
       } catch (error) {
-        alert('Failed to save meeting: ' + error.message);
+        alertManager.showAlert('Failed to save meeting: ' + error.message, 'error');
       }
     }
 
-    async function deleteMeeting(id) {
-      if (!confirm('Are you sure you want to delete this meeting?')) return;
-
-      try {
-        const res = await fetch(`/api/meetings/${id}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const error = await res.json();
-          throw new Error(error.error);
+    function deleteMeeting(id) {
+      alertManager.showConfirm({
+        title: 'Delete Meeting',
+        message: 'Are you sure you want to delete this meeting?',
+        confirmText: 'Delete',
+        confirmClass: 'btn-danger',
+        onConfirm: async () => {
+          try {
+            const res = await fetch(`/api/meetings/${id}`, { method: 'DELETE' });
+            if (!res.ok) {
+              const error = await res.json();
+              throw new Error(error.error);
+            }
+            loadMeetings();
+          } catch (error) {
+            alertManager.showAlert('Failed to delete meeting: ' + error.message, 'error');
+          }
         }
-
-        loadMeetings();
-      } catch (error) {
-        alert('Failed to delete meeting: ' + error.message);
-      }
+      });
     }
 
   </script>

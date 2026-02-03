@@ -29,10 +29,29 @@ const tfsTaskSchema = new mongoose.Schema({
     default: null,
     index: true
   },
+  matterNumber: {
+    type: String,
+    default: null,
+    index: true
+  },
+  tfsIdNotEntered: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
   estimated: {
     type: Number,
     default: null,
     min: 0
+  },
+  estimateSource: {
+    type: String,
+    enum: ['manual', 'bell-curve'],
+    default: 'manual'
+  },
+  estimateGroup: {
+    type: String,
+    default: null
   },
   quality: {
     type: Number,
@@ -55,6 +74,17 @@ const tfsTaskSchema = new mongoose.Schema({
     type: Map,
     of: mongoose.Schema.Types.Mixed,
     default: new Map()
+  },
+  // Date range for sorting
+  firstDate: {
+    type: String,
+    default: null,
+    index: true
+  },
+  lastDate: {
+    type: String,
+    default: null,
+    index: true
   }
 }, {
   timestamps: true
@@ -78,6 +108,7 @@ tfsTaskSchema.methods.recalculateTotals = function() {
 
   const breakdown = new Map();
   const breakdownByDate = new Map();
+  const allDates = [];
 
   this.timeEntries.forEach(entry => {
     const key = `${entry.firstName} ${entry.lastName}`;
@@ -86,6 +117,7 @@ tfsTaskSchema.methods.recalculateTotals = function() {
     // Calculate per-date breakdown
     const dateStr = entry.workDateOnly || (entry.workDate ? new Date(entry.workDate).toISOString().split('T')[0] : null);
     if (dateStr) {
+      allDates.push(dateStr);
       if (!breakdownByDate.has(key)) {
         breakdownByDate.set(key, {});
       }
@@ -96,6 +128,16 @@ tfsTaskSchema.methods.recalculateTotals = function() {
 
   this.developerBreakdown = breakdown;
   this.developerBreakdownByDate = breakdownByDate;
+
+  // Calculate date range
+  if (allDates.length > 0) {
+    allDates.sort();
+    this.firstDate = allDates[0];
+    this.lastDate = allDates[allDates.length - 1];
+  } else {
+    this.firstDate = null;
+    this.lastDate = null;
+  }
 
   return this;
 };

@@ -34,6 +34,135 @@ const upload = multer({
 });
 
 // ============================================
+// HELPER FUNCTIONS FOR BELL CURVE CALCULATIONS
+// ============================================
+
+// Get primary developer (one with most hours) from a task
+function getPrimaryDeveloper(task) {
+  if (!task.developerBreakdown || Object.keys(task.developerBreakdown).length === 0) {
+    return 'Unknown';
+  }
+  const breakdown = task.developerBreakdown instanceof Map
+    ? Object.fromEntries(task.developerBreakdown)
+    : task.developerBreakdown;
+  const sorted = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
+  return sorted[0][0];
+}
+
+// Helper to calculate median
+function median(values) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+// Calculate estimates for tasks without estimates using median (reduces outlier impact)
+async function calculateBellCurveEstimates(groupBy = 'developer') {
+  const tasks = await TfsTask.find({
+    totalActualHours: { $gt: 0 },
+    $or: [{ estimated: null }, { estimated: { $exists: false } }]
+  });
+
+  if (tasks.length === 0) {
+    return { updated: 0, groups: 0 };
+  }
+
+  // Group tasks
+  const groups = new Map();
+  tasks.forEach(task => {
+    const key = groupBy === 'matter'
+      ? (task.matterNumber || 'Unknown')
+      : getPrimaryDeveloper(task);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(task);
+  });
+
+  // Calculate stats and update using median instead of mean
+  let updated = 0;
+  for (const [key, groupTasks] of groups) {
+    const actuals = groupTasks.map(t => t.totalActualHours);
+    const med = median(actuals);
+
+    // Calculate MAD (Median Absolute Deviation) - more robust than std dev
+    const deviations = actuals.map(v => Math.abs(v - med));
+    const mad = median(deviations);
+
+    // Estimate = median + small buffer (0.5 * MAD)
+    // Round to whole number, but for 100+ round UP to nearest 10
+    const raw = med + 0.5 * mad;
+    const estimate = raw >= 100 ? Math.ceil(raw / 10) * 10 : Math.round(raw) || 1;
+
+    for (const task of groupTasks) {
+      // Estimate should be at least equal to actual hours
+      task.estimated = Math.max(estimate, Math.ceil(task.totalActualHours));
+      task.estimateSource = 'bell-curve';
+      task.estimateGroup = key;
+      await task.save();
+      updated++;
+    }
+  }
+
+  return { updated, groups: groups.size };
+}
+
+// Calculate quality based on absolute variance thresholds
+// 3 = meets expectation (on target), 1-2 = over budget, 4-5 = under budget
+async function calculateBellCurveQuality() {
+  const tasks = await TfsTask.find({
+    totalActualHours: { $gt: 0 },
+    estimated: { $ne: null, $gt: 0 },
+    $or: [{ quality: null }, { quality: { $exists: false } }]
+  });
+
+  if (tasks.length === 0) {
+    return { updated: 0 };
+  }
+
+  let updated = 0;
+  for (const task of tasks) {
+    const variancePercent = (task.totalActualHours - task.estimated) / task.estimated;
+
+    // Adjusted thresholds - 3 (average) should be most common
+    // Tighter bands for 5 and 2, no 1s
+    let quality;
+    if (variancePercent <= -0.25) {
+      quality = 5; // 25%+ under budget - excellent (rare)
+    } else if (variancePercent <= -0.10) {
+      quality = 4; // 10-25% under budget - good
+    } else if (variancePercent <= 0.25) {
+      quality = 3; // Within 25% over or 10% under - meets expectation (most common)
+    } else {
+      quality = 2; // More than 25% over budget (handful, no 1s)
+    }
+
+    task.quality = quality;
+    await task.save();
+    updated++;
+  }
+
+  return { updated };
+}
+
+// Fix estimates that are less than actual hours
+async function fixLowEstimates() {
+  const tasks = await TfsTask.find({
+    totalActualHours: { $gt: 0 },
+    estimated: { $ne: null },
+    $expr: { $lt: ['$estimated', '$totalActualHours'] }
+  });
+
+  let fixed = 0;
+  for (const task of tasks) {
+    task.estimated = Math.ceil(task.totalActualHours);
+    await task.save();
+    fixed++;
+  }
+
+  return { fixed };
+}
+
+// ============================================
 // STATIC ROUTES FIRST (before :id param routes)
 // ============================================
 
@@ -92,17 +221,31 @@ router.get('/', async (req, res) => {
     } else if (filter === 'complete') {
       query.estimated = { $ne: null, $exists: true };
       query.quality = { $ne: null, $exists: true };
-    } else if (filter === 'noActual') {
+    } else if (filter === 'orphanedEntries') {
+      // Tasks where TFS ID was not entered (negative ID or flag set)
       query.$or = [
-        { totalActualHours: { $eq: 0 } },
-        { totalActualHours: { $exists: false } },
-        { timeEntries: { $size: 0 } },
-        { timeEntries: { $exists: false } }
+        { tfsId: { $lt: 0 } },
+        { tfsIdNotEntered: true }
       ];
+    } else if (filter === 'orphanedTasks') {
+      // Tasks with no time entries (0 actuals) but have valid positive IDs
+      query.$and = query.$and || [];
+      query.$and.push(
+        { $or: [
+          { totalActualHours: { $eq: 0 } },
+          { totalActualHours: { $exists: false } },
+          { timeEntries: { $size: 0 } },
+          { timeEntries: { $exists: false } }
+        ]},
+        { tfsId: { $gte: 0 } },
+        { tfsIdNotEntered: { $ne: true } }
+      );
     }
 
+    // Map dateRange sort to firstDate
+    const actualSortField = sortField === 'dateRange' ? 'firstDate' : sortField;
     const sort = {};
-    sort[sortField] = sortOrder;
+    sort[actualSortField] = sortOrder;
 
     const [tasks, total] = await Promise.all([
       TfsTask.find(query).sort(sort).skip(skip).limit(limit).lean(),
@@ -115,10 +258,10 @@ router.get('/', async (req, res) => {
         Object.keys(task.developerBreakdown).forEach(name => devNames.push(name));
       }
 
-      // Calculate date range from time entries
-      let firstDate = null;
-      let lastDate = null;
-      if (task.timeEntries && task.timeEntries.length > 0) {
+      // Use stored firstDate/lastDate, or calculate from time entries if not present
+      let firstDate = task.firstDate;
+      let lastDate = task.lastDate;
+      if (!firstDate && task.timeEntries && task.timeEntries.length > 0) {
         const dates = task.timeEntries
           .map(e => e.workDateOnly || (e.workDate ? new Date(e.workDate).toISOString().split('T')[0] : null))
           .filter(d => d)
@@ -304,6 +447,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
       if (existingTask) {
         existingTask.timeEntries = taskData.timeEntries;
         existingTask.title = taskTitle || existingTask.title;
+        existingTask.tfsIdNotEntered = taskData.tfsIdNotEntered || false;
         existingTask.recalculateTotals();
         await existingTask.save();
         updated++;
@@ -326,7 +470,8 @@ router.post('/import', upload.single('file'), async (req, res) => {
           timeEntries: taskData.timeEntries,
           totalActualHours: taskData.totalActualHours,
           developerBreakdown,
-          developerBreakdownByDate
+          developerBreakdownByDate,
+          tfsIdNotEntered: taskData.tfsIdNotEntered || false
         });
         imported++;
       }
@@ -352,12 +497,24 @@ router.post('/import', upload.single('file'), async (req, res) => {
       fs.unlinkSync(excelPath);
     }
 
+    // Auto-calculate bell curve estimates for tasks without estimates
+    const estimateResult = await calculateBellCurveEstimates('developer');
+
+    // Fix any estimates that are less than actuals
+    const fixedEstimates = await fixLowEstimates();
+
+    // Auto-calculate bell curve quality for tasks without quality
+    const qualityResult = await calculateBellCurveQuality();
+
     res.json({
       success: true,
-      message: `Import complete: ${imported} new tasks, ${updated} updated, ${developerMap.size} developers`,
+      message: `Import complete: ${imported} new tasks, ${updated} updated, ${developerMap.size} developers. Auto-calculated ${estimateResult.updated} estimates (${fixedEstimates.fixed} corrected), ${qualityResult.updated} quality scores.`,
       imported,
       updated,
-      developers: developerMap.size
+      developers: developerMap.size,
+      estimatesCalculated: estimateResult.updated,
+      estimatesCorrected: fixedEstimates.fixed,
+      qualityCalculated: qualityResult.updated
     });
   } catch (error) {
     if (req.file && fs.existsSync(req.file.path)) {
@@ -664,13 +821,23 @@ router.get('/export/xlsx', async (req, res) => {
     } else if (filter === 'complete') {
       query.estimated = { $ne: null, $exists: true };
       query.quality = { $ne: null, $exists: true };
-    } else if (filter === 'noActual') {
+    } else if (filter === 'orphanedEntries') {
       query.$or = [
-        { totalActualHours: { $eq: 0 } },
-        { totalActualHours: { $exists: false } },
-        { timeEntries: { $size: 0 } },
-        { timeEntries: { $exists: false } }
+        { tfsId: { $lt: 0 } },
+        { tfsIdNotEntered: true }
       ];
+    } else if (filter === 'orphanedTasks') {
+      query.$and = query.$and || [];
+      query.$and.push(
+        { $or: [
+          { totalActualHours: { $eq: 0 } },
+          { totalActualHours: { $exists: false } },
+          { timeEntries: { $size: 0 } },
+          { timeEntries: { $exists: false } }
+        ]},
+        { tfsId: { $gte: 0 } },
+        { tfsIdNotEntered: { $ne: true } }
+      );
     }
 
     const tasks = await TfsTask.find(query).sort({ tfsId: 1 }).lean();
@@ -742,6 +909,257 @@ router.get('/export/xlsx', async (req, res) => {
     // Write to response
     await workbook.xlsx.write(res);
     res.end();
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// BELL CURVE ESTIMATE CALCULATION
+// ============================================
+
+// POST /api/tfs/calculate-estimates - Calculate estimates using bell curve method
+router.post('/calculate-estimates', async (req, res) => {
+  try {
+    const { groupBy } = req.body; // 'matter' or 'developer'
+
+    if (!groupBy || !['matter', 'developer'].includes(groupBy)) {
+      return res.status(400).json({ error: 'groupBy must be "matter" or "developer"' });
+    }
+
+    // 1. Get all tasks with actuals but no estimate
+    const tasks = await TfsTask.find({
+      totalActualHours: { $gt: 0 },
+      $or: [{ estimated: null }, { estimated: { $exists: false } }]
+    });
+
+    if (tasks.length === 0) {
+      return res.json({ success: true, updated: 0, groups: 0, message: 'No tasks need estimates' });
+    }
+
+    // Helper to get primary developer (the one with most hours)
+    const getPrimaryDeveloper = (task) => {
+      if (!task.developerBreakdown || Object.keys(task.developerBreakdown).length === 0) {
+        return 'Unknown';
+      }
+      const breakdown = task.developerBreakdown instanceof Map
+        ? Object.fromEntries(task.developerBreakdown)
+        : task.developerBreakdown;
+      const sorted = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
+      return sorted[0][0];
+    };
+
+    // 2. Group tasks by category
+    const groups = new Map();
+    tasks.forEach(task => {
+      const key = groupBy === 'matter'
+        ? (task.matterNumber || 'Unknown')
+        : getPrimaryDeveloper(task);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(task);
+    });
+
+    // 3. Calculate stats per group and update estimates using median
+    let updated = 0;
+    const groupStats = [];
+
+    for (const [key, groupTasks] of groups) {
+      const actuals = groupTasks.map(t => t.totalActualHours);
+      const med = median(actuals);
+
+      // Calculate MAD (Median Absolute Deviation) - more robust than std dev
+      const deviations = actuals.map(v => Math.abs(v - med));
+      const mad = median(deviations);
+
+      // Estimate = median + 0.5 MAD (slight buffer for uncertainty)
+      // Round to whole number, but for 100+ round UP to nearest 10
+      const raw = med + 0.5 * mad;
+      const estimate = raw >= 100 ? Math.ceil(raw / 10) * 10 : Math.round(raw) || 1;
+
+      groupStats.push({
+        group: key,
+        taskCount: groupTasks.length,
+        median: Math.round(med * 100) / 100,
+        mad: Math.round(mad * 100) / 100,
+        estimate
+      });
+
+      // Update tasks in this group - estimate should be at least equal to actual
+      for (const task of groupTasks) {
+        task.estimated = Math.max(estimate, Math.ceil(task.totalActualHours));
+        task.estimateSource = 'bell-curve';
+        task.estimateGroup = key;
+        await task.save();
+        updated++;
+      }
+    }
+
+    res.json({
+      success: true,
+      updated,
+      groups: groups.size,
+      groupStats
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/tfs/estimate-preview - Preview bell curve estimates without saving
+router.get('/estimate-preview', async (req, res) => {
+  try {
+    const { groupBy } = req.query;
+
+    if (!groupBy || !['matter', 'developer'].includes(groupBy)) {
+      return res.status(400).json({ error: 'groupBy must be "matter" or "developer"' });
+    }
+
+    // Get all tasks with actuals but no estimate
+    const tasks = await TfsTask.find({
+      totalActualHours: { $gt: 0 },
+      $or: [{ estimated: null }, { estimated: { $exists: false } }]
+    }).lean();
+
+    if (tasks.length === 0) {
+      return res.json({ groups: [], totalTasks: 0 });
+    }
+
+    const getPrimaryDeveloper = (task) => {
+      if (!task.developerBreakdown || Object.keys(task.developerBreakdown).length === 0) {
+        return 'Unknown';
+      }
+      const sorted = Object.entries(task.developerBreakdown).sort((a, b) => b[1] - a[1]);
+      return sorted[0][0];
+    };
+
+    const groups = new Map();
+    tasks.forEach(task => {
+      const key = groupBy === 'matter'
+        ? (task.matterNumber || 'Unknown')
+        : getPrimaryDeveloper(task);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(task);
+    });
+
+    const groupStats = [];
+    for (const [key, groupTasks] of groups) {
+      const actuals = groupTasks.map(t => t.totalActualHours);
+      const sorted = [...actuals].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      const med = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+
+      // Calculate MAD
+      const deviations = actuals.map(v => Math.abs(v - med));
+      const sortedDev = [...deviations].sort((a, b) => a - b);
+      const midDev = Math.floor(sortedDev.length / 2);
+      const mad = sortedDev.length % 2 !== 0 ? sortedDev[midDev] : (sortedDev[midDev - 1] + sortedDev[midDev]) / 2;
+
+      const raw = med + 0.5 * mad;
+      const estimate = raw >= 100 ? Math.ceil(raw / 10) * 10 : Math.round(raw) || 1;
+
+      groupStats.push({
+        group: key,
+        taskCount: groupTasks.length,
+        taskIds: groupTasks.map(t => t.tfsId),
+        median: Math.round(med * 100) / 100,
+        mad: Math.round(mad * 100) / 100,
+        estimate,
+        range: {
+          low: Math.round(med - mad) || 1,
+          high: Math.round(med + mad) || 1
+        }
+      });
+    }
+
+    groupStats.sort((a, b) => b.taskCount - a.taskCount);
+
+    res.json({
+      groups: groupStats,
+      totalTasks: tasks.length
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// BELL CURVE QUALITY CALCULATION
+// ============================================
+
+// POST /api/tfs/fix-low-estimates - Fix estimates that are less than actuals
+router.post('/fix-low-estimates', async (req, res) => {
+  try {
+    const result = await fixLowEstimates();
+    res.json({
+      success: true,
+      fixed: result.fixed,
+      message: result.fixed > 0
+        ? `Fixed ${result.fixed} estimates that were below actual hours`
+        : 'No estimates needed fixing'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/tfs/calculate-quality - Calculate quality using bell curve method
+router.post('/calculate-quality', async (req, res) => {
+  try {
+    const result = await calculateBellCurveQuality();
+    res.json({
+      success: true,
+      updated: result.updated,
+      message: result.updated > 0
+        ? `Updated ${result.updated} tasks with quality scores`
+        : 'No tasks need quality scores (must have estimate and actuals)'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/tfs/quality-preview - Preview quality calculations
+router.get('/quality-preview', async (req, res) => {
+  try {
+    const tasks = await TfsTask.find({
+      totalActualHours: { $gt: 0 },
+      estimated: { $ne: null, $gt: 0 },
+      $or: [{ quality: null }, { quality: { $exists: false } }]
+    }).lean();
+
+    if (tasks.length === 0) {
+      return res.json({ tasks: [], totalTasks: 0 });
+    }
+
+    const preview = tasks.map(task => {
+      const variancePercent = (task.totalActualHours - task.estimated) / task.estimated;
+
+      // Adjusted thresholds - 3 should be most common, no 1s
+      let quality;
+      if (variancePercent <= -0.25) quality = 5;      // 25%+ under budget (rare)
+      else if (variancePercent <= -0.10) quality = 4; // 10-25% under budget
+      else if (variancePercent <= 0.25) quality = 3;  // Within 25% over or 10% under (most common)
+      else quality = 2;                                // 25%+ over (handful, no 1s)
+
+      return {
+        tfsId: task.tfsId,
+        title: task.title,
+        estimated: task.estimated,
+        actual: task.totalActualHours,
+        variancePercent: Math.round(variancePercent * 100),
+        predictedQuality: quality
+      };
+    });
+
+    // Group by predicted quality for summary (no 1s in new system)
+    const summary = { 2: 0, 3: 0, 4: 0, 5: 0 };
+    preview.forEach(p => summary[p.predictedQuality]++);
+
+    res.json({
+      tasks: preview.slice(0, 50), // Limit preview to 50 tasks
+      totalTasks: tasks.length,
+      summary
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

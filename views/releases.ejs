@@ -745,7 +745,7 @@
 
         document.getElementById('releaseModal').classList.remove('hidden');
       } catch (error) {
-        alert('Failed to load release: ' + error.message);
+        alertManager.showAlert('Failed to load release: ' + error.message, 'error');
       }
     }
 
@@ -765,7 +765,7 @@
       };
 
       if (!data.application) {
-        alert('Please select an application');
+        alertManager.showAlert('Please select an application', 'warning');
         return;
       }
 
@@ -787,24 +787,29 @@
         closeModal();
         loadReleases();
       } catch (error) {
-        alert('Failed to save release: ' + error.message);
+        alertManager.showAlert('Failed to save release: ' + error.message, 'error');
       }
     }
 
-    async function deleteRelease(id) {
-      if (!confirm('Are you sure you want to delete this release?')) return;
-
-      try {
-        const res = await fetch(`/api/releases/${id}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const error = await res.json();
-          throw new Error(error.error);
+    function deleteRelease(id) {
+      alertManager.showConfirm({
+        title: 'Delete Release',
+        message: 'Are you sure you want to delete this release?',
+        confirmText: 'Delete',
+        confirmClass: 'btn-danger',
+        onConfirm: async () => {
+          try {
+            const res = await fetch(`/api/releases/${id}`, { method: 'DELETE' });
+            if (!res.ok) {
+              const error = await res.json();
+              throw new Error(error.error);
+            }
+            loadReleases();
+          } catch (error) {
+            alertManager.showAlert('Failed to delete release: ' + error.message, 'error');
+          }
         }
-
-        loadReleases();
-      } catch (error) {
-        alert('Failed to delete release: ' + error.message);
-      }
+      });
     }
 
     // History functions
@@ -853,7 +858,7 @@
 
         document.getElementById('historyModal').classList.remove('hidden');
       } catch (error) {
-        alert('Failed to load history: ' + error.message);
+        alertManager.showAlert('Failed to load history: ' + error.message, 'error');
       }
     }
 
@@ -993,26 +998,31 @@
       document.body.removeChild(link);
     }
 
-    async function deleteAttachment(releaseId, attachmentId) {
-      if (!confirm('Are you sure you want to delete this attachment?')) return;
+    function deleteAttachment(releaseId, attachmentId) {
+      alertManager.showConfirm({
+        title: 'Delete Attachment',
+        message: 'Are you sure you want to delete this attachment?',
+        confirmText: 'Delete',
+        confirmClass: 'btn-danger',
+        onConfirm: async () => {
+          try {
+            const res = await fetch(`/api/releases/${releaseId}/attachments/${attachmentId}`, {
+              method: 'DELETE'
+            });
 
-      try {
-        const res = await fetch(`/api/releases/${releaseId}/attachments/${attachmentId}`, {
-          method: 'DELETE'
-        });
+            if (!res.ok) {
+              const error = await res.json();
+              throw new Error(error.error);
+            }
 
-        if (!res.ok) {
-          const error = await res.json();
-          throw new Error(error.error);
+            const data = await res.json();
+            currentAttachments = data.attachments;
+            renderAttachments();
+          } catch (error) {
+            alertManager.showAlert('Failed to delete attachment: ' + error.message, 'error');
+          }
         }
-
-        const data = await res.json();
-        currentAttachments = data.attachments;
-        renderAttachments();
-
-      } catch (error) {
-        alert('Failed to delete attachment: ' + error.message);
-      }
+      });
     }
   </script>
 </body>

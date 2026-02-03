@@ -461,7 +461,7 @@
           parsedData = { documents: docs };
 
         } catch (error) {
-          alert('Invalid JSON file: ' + error.message);
+          alertManager.showAlert('Invalid JSON file: ' + error.message, 'error');
           selectedFile = null;
           parsedData = null;
         }
@@ -470,23 +470,31 @@
       reader.readAsText(file);
     }
 
-    async function doImport() {
+    function doImport() {
       const collection = document.getElementById('importCollection').value;
       const clearExisting = document.getElementById('clearExisting').checked;
       const preserveIds = document.getElementById('preserveIds').checked;
       const btn = document.getElementById('doImportBtn');
 
       if (!parsedData || !parsedData.documents) {
-        alert('No valid data to import');
+        alertManager.showAlert('No valid data to import', 'warning');
         return;
       }
 
       if (clearExisting) {
-        if (!confirm(`This will DELETE all existing data in "${collection}" before importing. Continue?`)) {
-          return;
-        }
+        alertManager.showConfirm({
+          title: 'Clear Existing Data',
+          message: `This will DELETE all existing data in "${collection}" before importing. Continue?`,
+          confirmText: 'Clear & Import',
+          confirmClass: 'btn-danger',
+          onConfirm: () => performImportAction(collection, clearExisting, preserveIds, btn)
+        });
+      } else {
+        performImportAction(collection, clearExisting, preserveIds, btn);
       }
+    }
 
+    async function performImportAction(collection, clearExisting, preserveIds, btn) {
       try {
         btn.textContent = 'Importing...';
         btn.disabled = true;
@@ -507,46 +515,54 @@
           throw new Error(result.error || 'Import failed');
         }
 
-        alert(result.message);
+        alertManager.showAlert(result.message, 'success');
         closeImportModal();
         loadCollections();
         loadStats();
 
       } catch (error) {
-        alert('Import error: ' + error.message);
+        alertManager.showAlert('Import error: ' + error.message, 'error');
       } finally {
         btn.textContent = 'Import';
         btn.disabled = false;
       }
     }
 
-    async function clearCollection(name) {
-      if (!confirm(`Are you sure you want to delete ALL documents in "${name}"? This cannot be undone.`)) {
-        return;
-      }
+    function clearCollection(name) {
+      alertManager.showConfirm({
+        title: 'Delete Collection',
+        message: `Are you sure you want to delete ALL documents in "${name}"? This cannot be undone.`,
+        confirmText: 'Delete All',
+        confirmClass: 'btn-danger',
+        onConfirm: () => {
+          alertManager.showConfirm({
+            title: 'Final Confirmation',
+            message: `Final confirmation: Delete everything in "${name}"?`,
+            confirmText: 'Yes, Delete All',
+            confirmClass: 'btn-danger',
+            onConfirm: async () => {
+              try {
+                const res = await fetch(`/api/admin/collections/${name}`, {
+                  method: 'DELETE'
+                });
 
-      if (!confirm(`Final confirmation: Delete everything in "${name}"?`)) {
-        return;
-      }
+                const result = await res.json();
 
-      try {
-        const res = await fetch(`/api/admin/collections/${name}`, {
-          method: 'DELETE'
-        });
+                if (!res.ok) {
+                  throw new Error(result.error || 'Delete failed');
+                }
 
-        const result = await res.json();
+                alertManager.showAlert(result.message, 'success');
+                loadCollections();
+                loadStats();
 
-        if (!res.ok) {
-          throw new Error(result.error || 'Delete failed');
+              } catch (error) {
+                alertManager.showAlert('Error: ' + error.message, 'error');
+              }
+            }
+          });
         }
-
-        alert(result.message);
-        loadCollections();
-        loadStats();
-
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
+      });
     }
   </script>
 </body>

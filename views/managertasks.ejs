@@ -1027,7 +1027,7 @@
 
         document.getElementById('taskModal').classList.remove('hidden');
       } catch (error) {
-        alert('Failed to load task: ' + error.message);
+        alertManager.showAlert('Failed to load task: ' + error.message, 'error');
       }
     }
 
@@ -1048,11 +1048,11 @@
       };
 
       if (!data.application) {
-        alert('Please select an application');
+        alertManager.showAlert('Please select an application', 'warning');
         return;
       }
       if (!data.description) {
-        alert('Please enter a description');
+        alertManager.showAlert('Please enter a description', 'warning');
         return;
       }
 
@@ -1074,24 +1074,29 @@
         closeModal();
         loadTasks();
       } catch (error) {
-        alert('Failed to save task: ' + error.message);
+        alertManager.showAlert('Failed to save task: ' + error.message, 'error');
       }
     }
 
-    async function deleteTask(id) {
-      if (!confirm('Are you sure you want to delete this task?')) return;
-
-      try {
-        const res = await fetch(`/api/managertasks/${id}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const error = await res.json();
-          throw new Error(error.error);
+    function deleteTask(id) {
+      alertManager.showConfirm({
+        title: 'Delete Task',
+        message: 'Are you sure you want to delete this task?',
+        confirmText: 'Delete',
+        confirmClass: 'btn-danger',
+        onConfirm: async () => {
+          try {
+            const res = await fetch(`/api/managertasks/${id}`, { method: 'DELETE' });
+            if (!res.ok) {
+              const error = await res.json();
+              throw new Error(error.error);
+            }
+            loadTasks();
+          } catch (error) {
+            alertManager.showAlert('Failed to delete task: ' + error.message, 'error');
+          }
         }
-
-        loadTasks();
-      } catch (error) {
-        alert('Failed to delete task: ' + error.message);
-      }
+      });
     }
 
     // File attachment functions
@@ -1229,26 +1234,31 @@
       document.body.removeChild(link);
     }
 
-    async function deleteAttachment(taskId, attachmentId) {
-      if (!confirm('Are you sure you want to delete this attachment?')) return;
+    function deleteAttachment(taskId, attachmentId) {
+      alertManager.showConfirm({
+        title: 'Delete Attachment',
+        message: 'Are you sure you want to delete this attachment?',
+        confirmText: 'Delete',
+        confirmClass: 'btn-danger',
+        onConfirm: async () => {
+          try {
+            const res = await fetch(`/api/managertasks/${taskId}/attachments/${attachmentId}`, {
+              method: 'DELETE'
+            });
 
-      try {
-        const res = await fetch(`/api/managertasks/${taskId}/attachments/${attachmentId}`, {
-          method: 'DELETE'
-        });
+            if (!res.ok) {
+              const error = await res.json();
+              throw new Error(error.error);
+            }
 
-        if (!res.ok) {
-          const error = await res.json();
-          throw new Error(error.error);
+            const data = await res.json();
+            currentAttachments = data.attachments;
+            renderAttachments();
+          } catch (error) {
+            alertManager.showAlert('Failed to delete attachment: ' + error.message, 'error');
+          }
         }
-
-        const data = await res.json();
-        currentAttachments = data.attachments;
-        renderAttachments();
-
-      } catch (error) {
-        alert('Failed to delete attachment: ' + error.message);
-      }
+      });
     }
   </script>
 </body>

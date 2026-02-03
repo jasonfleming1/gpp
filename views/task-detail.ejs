@@ -189,9 +189,9 @@
         const data = await res.json();
         document.getElementById('estimatedDisplay').textContent = data.estimated !== null ? data.estimated : '-';
         document.getElementById('qualityDisplay').textContent = data.quality !== null ? data.quality + '/5' : '-';
-        alert('Saved successfully!');
+        alertManager.showAlert('Saved successfully!', 'success');
       } catch (error) {
-        alert('Error saving: ' + error.message);
+        alertManager.showAlert('Error saving: ' + error.message, 'error');
       }
     });
   </script>

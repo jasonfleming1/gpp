@@ -239,6 +239,112 @@
       }
     }
 
+    /* Estimate Preview Styles */
+    .estimate-preview {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: var(--space-3);
+    }
+
+    .estimate-preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .estimate-preview-table th,
+    .estimate-preview-table td {
+      padding: var(--space-2) var(--space-3);
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .estimate-preview-table th {
+      background: var(--bg-secondary);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+
+    .estimate-preview-table tr:hover {
+      background: var(--bg-secondary);
+    }
+
+    .estimate-preview .loading {
+      text-align: center;
+      padding: var(--space-4);
+      color: var(--text-secondary);
+    }
+
+    .estimate-preview .empty {
+      text-align: center;
+      padding: var(--space-4);
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    .estimate-summary {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      padding: var(--space-3);
+      margin-bottom: var(--space-3);
+      font-size: 0.9rem;
+    }
+
+    /* Calculation Tabs */
+    .calc-tabs {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: var(--space-2);
+    }
+
+    .calc-tab {
+      background: none;
+      border: none;
+      padding: var(--space-2) var(--space-4);
+      cursor: pointer;
+      font-weight: 500;
+      color: var(--text-secondary);
+      border-radius: var(--radius-md) var(--radius-md) 0 0;
+      transition: all 0.2s ease;
+    }
+
+    .calc-tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+    }
+
+    .calc-tab.active {
+      color: var(--brand-primary);
+      border-bottom: 2px solid var(--brand-primary);
+    }
+
+    .calc-tab-content {
+      min-height: 200px;
+    }
+
+    .quality-distribution {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: var(--space-3);
+    }
+
+    .quality-bar {
+      flex: 1;
+      text-align: center;
+      padding: var(--space-2);
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
+    }
+
+    .quality-bar.q5 { background: rgba(34, 197, 94, 0.2); color: #16a34a; }
+    .quality-bar.q4 { background: rgba(132, 204, 22, 0.2); color: #65a30d; }
+    .quality-bar.q3 { background: rgba(234, 179, 8, 0.2); color: #ca8a04; }
+    .quality-bar.q2 { background: rgba(249, 115, 22, 0.2); color: #ea580c; }
+    .quality-bar.q1 { background: rgba(239, 68, 68, 0.2); color: #dc2626; }
+
     /* Year Filter Dropdown */
     .year-filter {
       padding: var(--space-2) var(--space-3);
@@ -320,6 +426,56 @@
     </div>
   </div>
 
+  <div id="estimateModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Bell Curve Calculations</h2>
+        <button class="modal-close" onclick="closeEstimateModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Tabs for Estimates vs Quality -->
+        <div class="calc-tabs">
+          <button class="calc-tab active" onclick="switchCalcTab('estimates')">Estimates</button>
+          <button class="calc-tab" onclick="switchCalcTab('quality')">Quality</button>
+        </div>
+
+        <!-- Estimates Tab -->
+        <div id="estimatesTab" class="calc-tab-content">
+          <p class="help-text">Auto-calculate estimates for tasks that have actuals but no estimate.</p>
+          <div class="form-group">
+            <label for="groupBySelect">Group By</label>
+            <select id="groupBySelect" onchange="previewEstimates()">
+              <option value="">Select grouping...</option>
+              <option value="developer">Developer (Primary)</option>
+              <option value="matter">Matter Number</option>
+            </select>
+          </div>
+          <div id="estimatePreview" class="estimate-preview"></div>
+          <p class="help-text" style="margin-top: var(--space-3);">
+            <strong>Formula:</strong> Estimate = Median + (0.5 × MAD)<br>
+            <small>Rounds to whole numbers; 100+ rounds up to nearest 10</small>
+          </p>
+        </div>
+
+        <!-- Quality Tab -->
+        <div id="qualityTab" class="calc-tab-content" style="display: none;">
+          <p class="help-text">Auto-calculate quality scores based on variance from estimates. 3 = meets expectation.</p>
+          <div id="qualityPreview" class="estimate-preview"></div>
+          <p class="help-text" style="margin-top: var(--space-3);">
+            <strong>Thresholds:</strong><br>
+            5 = 25%+ under (rare) | 4 = 10-25% under | 3 = within ±25% (most common)<br>
+            2 = 25%+ over (handful)
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeEstimateModal()">Cancel</button>
+        <button class="btn btn-primary" id="applyEstimatesBtn" onclick="applyEstimates()" disabled>Apply Estimates</button>
+        <button class="btn btn-primary" id="applyQualityBtn" onclick="applyQuality()" style="display: none;" disabled>Apply Quality</button>
+      </div>
+    </div>
+  </div>
+
   <main class="container">
     <div class="tasks-page">
       <div class="page-header">
@@ -332,7 +488,8 @@
           <a href="/tasks?filter=needsEstimate" class="filter-btn <%= filter === 'needsEstimate' ? 'active' : '' %>">Needs Estimate</a>
           <a href="/tasks?filter=needsQuality" class="filter-btn <%= filter === 'needsQuality' ? 'active' : '' %>">Needs Quality</a>
           <a href="/tasks?filter=complete" class="filter-btn <%= filter === 'complete' ? 'active' : '' %>">Complete</a>
-          <a href="/tasks?filter=noActual" class="filter-btn <%= filter === 'noActual' ? 'active' : '' %>">No Actual</a>
+          <a href="/tasks?filter=orphanedEntries" class="filter-btn <%= filter === 'orphanedEntries' ? 'active' : '' %>">Orphaned Entries</a>
+          <a href="/tasks?filter=orphanedTasks" class="filter-btn <%= filter === 'orphanedTasks' ? 'active' : '' %>">Orphaned Tasks</a>
         </div>
         <div class="search-bar">
           <select id="yearFilter" class="year-filter">
@@ -342,6 +499,7 @@
           <button id="searchBtn" class="btn btn-primary">Search</button>
           <div class="toolbar-actions">
             <button id="createBtn" class="btn btn-success" onclick="createTask()">+ Create</button>
+            <button id="calcEstimatesBtn" class="btn btn-secondary" onclick="openEstimateModal()">Calc Estimates</button>
             <button id="exportBtn" class="btn btn-secondary" onclick="exportToExcel()">Export</button>
             <button id="importBtn" class="btn btn-primary">Import</button>
           </div>
@@ -457,13 +615,36 @@
       { field: 'tfsId', label: 'ASD ID', sortable: true },
       { field: 'title', label: 'Title', sortable: true },
       { field: 'developers', label: 'Developers', sortable: false },
-      { field: 'dateRange', label: 'Date Range', sortable: false },
+      { field: 'quarter', label: 'Quarter', sortable: false },
+      { field: 'dateRange', label: 'Date Range', sortable: true },
       { field: 'totalActualHours', label: 'Actual', sortable: true },
       { field: 'estimated', label: 'Est.', sortable: true },
       { field: 'variance', label: 'Var.', sortable: false },
       { field: 'quality', label: 'Quality', sortable: true },
       { field: 'actions', label: 'Actions', sortable: false }
     ];
+
+    // Helper to get quarter from date string
+    function getQuarter(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr + 'T00:00:00');
+      const q = Math.ceil((d.getMonth() + 1) / 3);
+      return { quarter: q, year: d.getFullYear() };
+    }
+
+    function formatQuarterRange(firstDate, lastDate) {
+      const first = getQuarter(firstDate);
+      const last = getQuarter(lastDate);
+
+      if (!first) return '-';
+      if (!last || (first.quarter === last.quarter && first.year === last.year)) {
+        return `Q${first.quarter} ${first.year}`;
+      }
+      if (first.year === last.year) {
+        return `Q${first.quarter}-Q${last.quarter} ${first.year}`;
+      }
+      return `Q${first.quarter} ${first.year} - Q${last.quarter} ${last.year}`;
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
       loadYears();
@@ -578,10 +759,13 @@
             dateRange = task.firstDate || task.lastDate;
           }
 
+          const quarterRange = formatQuarterRange(task.firstDate, task.lastDate);
+
           html += '<tr>';
           html += '<td><strong>' + task.tfsId + '</strong></td>';
           html += '<td class="truncate">' + (task.title || '-') + '</td>';
           html += '<td class="truncate dev-cell">' + devList + '</td>';
+          html += '<td class="quarter-cell">' + quarterRange + '</td>';
           html += '<td class="date-cell">' + dateRange + '</td>';
           html += '<td>' + task.totalActualHours.toFixed(2) + '</td>';
           html += '<td>' + (task.estimated !== null ? task.estimated : '<span class="badge warning">Missing</span>') + '</td>';
@@ -589,7 +773,6 @@
           html += '<td>' + (task.quality !== null ? task.quality + '/5' : '<span class="badge info">Missing</span>') + '</td>';
           html += '<td class="actions-cell">';
           html += '<button class="btn btn-sm btn-primary" onclick="editTask(' + task.tfsId + ')">Edit</button> ';
-          html += '<a href="/tasks/' + task.tfsId + '" class="btn btn-sm btn-secondary">Details</a> ';
           html += '<button class="btn btn-sm btn-danger" onclick="deleteTask(' + task.tfsId + ')">Delete</button>';
           html += '</td></tr>';
         });
@@ -780,7 +963,7 @@
         setupFocusTrap(modal);
         setTimeout(() => document.getElementById('tfsIdInput').focus(), 100);
       } catch (error) {
-        alert('Error loading task: ' + error.message);
+        alertManager.showAlert('Error loading task: ' + error.message, 'error');
       }
     }
 
@@ -867,26 +1050,30 @@
       editingTfsId = null;
     }
 
-    async function deleteTask(tfsId) {
-      if (!confirm('Are you sure you want to delete task ' + tfsId + '? This action cannot be undone.')) {
-        return;
-      }
+    function deleteTask(tfsId) {
+      alertManager.showConfirm({
+        title: 'Delete Task',
+        message: 'Are you sure you want to delete task ' + tfsId + '? This action cannot be undone.',
+        confirmText: 'Delete',
+        confirmClass: 'btn-danger',
+        onConfirm: async () => {
+          try {
+            const res = await fetch('/api/tfs/' + tfsId, {
+              method: 'DELETE'
+            });
 
-      try {
-        const res = await fetch('/api/tfs/' + tfsId, {
-          method: 'DELETE'
-        });
+            if (!res.ok) {
+              const err = await res.json();
+              throw new Error(err.error || 'Failed to delete');
+            }
 
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Failed to delete');
+            loadTasks();
+            alertManager.showAlert('Task ' + tfsId + ' deleted successfully', 'success');
+          } catch (error) {
+            alertManager.showAlert('Error deleting task: ' + error.message, 'error');
+          }
         }
-
-        loadTasks();
-        alertManager.showAlert('Task ' + tfsId + ' deleted successfully', 'success');
-      } catch (error) {
-        alertManager.showAlert('Error deleting task: ' + error.message, 'error');
-      }
+      });
     }
 
     async function saveTask() {
@@ -965,6 +1152,229 @@
       } catch (error) {
         alertManager.showAlert('Error saving: ' + error.message, 'error');
       }
+    }
+
+    // Estimate Modal Functions
+    let currentCalcTab = 'estimates';
+
+    function openEstimateModal() {
+      document.getElementById('estimateModal').classList.remove('hidden');
+      switchCalcTab('estimates');
+    }
+
+    function closeEstimateModal() {
+      document.getElementById('estimateModal').classList.add('hidden');
+    }
+
+    function switchCalcTab(tab) {
+      currentCalcTab = tab;
+
+      // Update tab buttons
+      document.querySelectorAll('.calc-tab').forEach((btn, idx) => {
+        btn.classList.remove('active');
+        if ((tab === 'estimates' && idx === 0) || (tab === 'quality' && idx === 1)) {
+          btn.classList.add('active');
+        }
+      });
+
+      // Show/hide content
+      document.getElementById('estimatesTab').style.display = tab === 'estimates' ? 'block' : 'none';
+      document.getElementById('qualityTab').style.display = tab === 'quality' ? 'block' : 'none';
+
+      // Show/hide buttons
+      document.getElementById('applyEstimatesBtn').style.display = tab === 'estimates' ? 'inline-block' : 'none';
+      document.getElementById('applyQualityBtn').style.display = tab === 'quality' ? 'inline-block' : 'none';
+
+      // Reset and load preview
+      if (tab === 'estimates') {
+        document.getElementById('groupBySelect').value = '';
+        document.getElementById('estimatePreview').innerHTML = '';
+        document.getElementById('applyEstimatesBtn').disabled = true;
+      } else {
+        previewQuality();
+      }
+    }
+
+    async function previewEstimates() {
+      const groupBy = document.getElementById('groupBySelect').value;
+      const preview = document.getElementById('estimatePreview');
+      const applyBtn = document.getElementById('applyEstimatesBtn');
+
+      if (!groupBy) {
+        preview.innerHTML = '';
+        applyBtn.disabled = true;
+        return;
+      }
+
+      preview.innerHTML = '<div class="loading">Loading preview...</div>';
+
+      try {
+        const res = await fetch('/api/tfs/estimate-preview?groupBy=' + groupBy);
+        const data = await res.json();
+
+        if (data.groups.length === 0) {
+          preview.innerHTML = '<div class="empty">No tasks need estimates</div>';
+          applyBtn.disabled = true;
+          return;
+        }
+
+        let html = '<div class="estimate-summary">';
+        html += '<strong>' + data.totalTasks + '</strong> tasks will receive estimates across ';
+        html += '<strong>' + data.groups.length + '</strong> groups';
+        html += '</div>';
+
+        html += '<table class="estimate-preview-table">';
+        html += '<thead><tr>';
+        html += '<th>Group</th>';
+        html += '<th>Tasks</th>';
+        html += '<th>Median</th>';
+        html += '<th>MAD</th>';
+        html += '<th>Estimate</th>';
+        html += '</tr></thead><tbody>';
+
+        data.groups.forEach(g => {
+          html += '<tr>';
+          html += '<td>' + g.group + '</td>';
+          html += '<td>' + g.taskCount + '</td>';
+          html += '<td>' + g.median.toFixed(1) + 'h</td>';
+          html += '<td>' + g.mad.toFixed(1) + '</td>';
+          html += '<td><strong>' + g.estimate + 'h</strong></td>';
+          html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        preview.innerHTML = html;
+        applyBtn.disabled = false;
+      } catch (error) {
+        preview.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+        applyBtn.disabled = true;
+      }
+    }
+
+    function applyEstimates() {
+      const groupBy = document.getElementById('groupBySelect').value;
+      if (!groupBy) return;
+
+      alertManager.showConfirm({
+        title: 'Apply Estimates',
+        message: 'This will update estimates for all tasks shown in the preview. Continue?',
+        confirmText: 'Apply',
+        confirmClass: 'btn-primary',
+        onConfirm: async () => {
+          try {
+            const res = await fetch('/api/tfs/calculate-estimates', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ groupBy })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+              throw new Error(data.error || 'Failed to calculate estimates');
+            }
+
+            closeEstimateModal();
+            loadTasks();
+            alertManager.showAlert(
+              'Updated ' + data.updated + ' tasks across ' + data.groups + ' groups',
+              'success'
+            );
+          } catch (error) {
+            alertManager.showAlert('Error: ' + error.message, 'error');
+          }
+        }
+      });
+    }
+
+    async function previewQuality() {
+      const preview = document.getElementById('qualityPreview');
+      const applyBtn = document.getElementById('applyQualityBtn');
+
+      preview.innerHTML = '<div class="loading">Loading preview...</div>';
+
+      try {
+        const res = await fetch('/api/tfs/quality-preview');
+        const data = await res.json();
+
+        if (data.totalTasks === 0) {
+          preview.innerHTML = '<div class="empty">No tasks need quality scores (must have both estimate and actuals)</div>';
+          applyBtn.disabled = true;
+          return;
+        }
+
+        let html = '<div class="estimate-summary">';
+        html += '<strong>' + data.totalTasks + '</strong> tasks will receive quality scores';
+        html += '</div>';
+
+        // Quality distribution bars (no 1s in adjusted system)
+        html += '<div class="quality-distribution">';
+        html += '<div class="quality-bar q5"><div>' + (data.summary[5] || 0) + '</div><small>5 (Excellent)</small></div>';
+        html += '<div class="quality-bar q4"><div>' + (data.summary[4] || 0) + '</div><small>4 (Good)</small></div>';
+        html += '<div class="quality-bar q3"><div>' + (data.summary[3] || 0) + '</div><small>3 (Average)</small></div>';
+        html += '<div class="quality-bar q2"><div>' + (data.summary[2] || 0) + '</div><small>2 (Below)</small></div>';
+        html += '</div>';
+
+        html += '<table class="estimate-preview-table">';
+        html += '<thead><tr>';
+        html += '<th>ASD ID</th>';
+        html += '<th>Est.</th>';
+        html += '<th>Actual</th>';
+        html += '<th>Variance</th>';
+        html += '<th>Quality</th>';
+        html += '</tr></thead><tbody>';
+
+        data.tasks.forEach(t => {
+          const varClass = t.variancePercent <= 0 ? 'positive' : 'negative';
+          html += '<tr>';
+          html += '<td>' + t.tfsId + '</td>';
+          html += '<td>' + t.estimated.toFixed(2) + 'h</td>';
+          html += '<td>' + t.actual.toFixed(2) + 'h</td>';
+          html += '<td class="' + varClass + '">' + (t.variancePercent > 0 ? '+' : '') + t.variancePercent + '%</td>';
+          html += '<td><strong>' + t.predictedQuality + '/5</strong></td>';
+          html += '</tr>';
+        });
+
+        if (data.totalTasks > 50) {
+          html += '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);">... and ' + (data.totalTasks - 50) + ' more tasks</td></tr>';
+        }
+
+        html += '</tbody></table>';
+        preview.innerHTML = html;
+        applyBtn.disabled = false;
+      } catch (error) {
+        preview.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+        applyBtn.disabled = true;
+      }
+    }
+
+    function applyQuality() {
+      alertManager.showConfirm({
+        title: 'Apply Quality Scores',
+        message: 'This will update quality scores for all tasks shown in the preview based on variance from estimates. Continue?',
+        confirmText: 'Apply',
+        confirmClass: 'btn-primary',
+        onConfirm: async () => {
+          try {
+            const res = await fetch('/api/tfs/calculate-quality', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+              throw new Error(data.error || 'Failed to calculate quality');
+            }
+
+            closeEstimateModal();
+            loadTasks();
+            alertManager.showAlert(data.message, 'success');
+          } catch (error) {
+            alertManager.showAlert('Error: ' + error.message, 'error');
+          }
+        }
+      });
     }
   </script>
 </body>
