@@ -251,12 +251,21 @@ router.get('/', async (req, res) => {
     const sort = {};
     sort[actualSortField] = sortOrder;
 
-    const [tasks, total] = await Promise.all([
-      TfsTask.find(query).sort(sort).skip(skip).limit(limit).lean(),
-      TfsTask.countDocuments(query)
-    ]);
+    // For orphanedEntries with developer sort, fetch all and sort in JS (no pagination needed)
+    const sortByDeveloperInMemory = filter === 'orphanedEntries' && sortField === 'developers';
 
-    const tasksWithDevs = tasks.map(task => {
+    let tasks, total;
+    if (sortByDeveloperInMemory) {
+      tasks = await TfsTask.find(query).lean();
+      total = tasks.length;
+    } else {
+      [tasks, total] = await Promise.all([
+        TfsTask.find(query).sort(sort).skip(skip).limit(limit).lean(),
+        TfsTask.countDocuments(query)
+      ]);
+    }
+
+    let tasksWithDevs = tasks.map(task => {
       const devNames = [];
       if (task.developerBreakdown) {
         Object.keys(task.developerBreakdown).forEach(name => devNames.push(name));
@@ -278,6 +287,17 @@ router.get('/', async (req, res) => {
 
       return { ...task, developers: devNames, firstDate, lastDate };
     });
+
+    // Sort by developer name in memory for orphanedEntries
+    if (sortByDeveloperInMemory) {
+      tasksWithDevs.sort((a, b) => {
+        const devA = a.developers[0] || '';
+        const devB = b.developers[0] || '';
+        return sortOrder === 1
+          ? devA.localeCompare(devB)
+          : devB.localeCompare(devA);
+      });
+    }
 
     res.json({
       tasks: tasksWithDevs,
@@ -466,6 +486,20 @@ router.post('/import', upload.single('file'), async (req, res) => {
           developerBreakdownByDate[name] = dates;
         });
 
+        // Calculate firstDate and lastDate from time entries
+        let firstDate = null;
+        let lastDate = null;
+        if (taskData.timeEntries && taskData.timeEntries.length > 0) {
+          const dates = taskData.timeEntries
+            .map(e => e.workDateOnly || (e.workDate ? new Date(e.workDate).toISOString().split('T')[0] : null))
+            .filter(d => d)
+            .sort();
+          if (dates.length > 0) {
+            firstDate = dates[0];
+            lastDate = dates[dates.length - 1];
+          }
+        }
+
         await TfsTask.create({
           tfsId: taskData.tfsId,
           title: taskTitle,
@@ -475,7 +509,9 @@ router.post('/import', upload.single('file'), async (req, res) => {
           totalActualHours: taskData.totalActualHours,
           developerBreakdown,
           developerBreakdownByDate,
-          tfsIdNotEntered: taskData.tfsIdNotEntered || false
+          tfsIdNotEntered: taskData.tfsIdNotEntered || false,
+          firstDate,
+          lastDate
         });
         imported++;
       }
@@ -541,6 +577,27 @@ router.post('/delete-all', async (req, res) => {
       message: `Deleted ${tasksResult.deletedCount} tasks and ${devsResult.deletedCount} developers`,
       tasksDeleted: tasksResult.deletedCount,
       developersDeleted: devsResult.deletedCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/tfs/recalculate-all - Recalculate totals for all tasks (updates primaryDeveloper, etc.)
+router.post('/recalculate-all', async (req, res) => {
+  try {
+    const tasks = await TfsTask.find({});
+    let updated = 0;
+
+    for (const task of tasks) {
+      task.recalculateTotals();
+      await task.save();
+      updated++;
+    }
+
+    res.json({
+      success: true,
+      message: `Recalculated totals for ${updated} tasks`
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
