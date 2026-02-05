@@ -170,6 +170,47 @@
       box-shadow: 0 0 20px rgba(61, 142, 179, 0.4);
     }
 
+    /* Inline Quality Buttons (table) */
+    .quality-inline {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .quality-inline-btn {
+      width: 24px;
+      height: 24px;
+      border: 1.5px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      background: var(--surface-primary);
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .quality-inline-btn:hover {
+      border-color: var(--brand-secondary);
+      color: var(--brand-secondary);
+      transform: scale(1.1);
+    }
+
+    .quality-inline-btn.active {
+      background: var(--brand-secondary);
+      border-color: var(--brand-secondary);
+      color: white;
+      box-shadow: 0 0 8px rgba(5, 113, 150, 0.3);
+    }
+
+    [data-theme="dark"] .quality-inline-btn.active {
+      box-shadow: 0 0 12px rgba(61, 142, 179, 0.4);
+    }
+
     /* Date Input Theme Support */
     input[type="date"] {
       color-scheme: light;
@@ -916,7 +957,11 @@
 
       tbody.innerHTML = tasks.map(t => {
         const description = t.description.length > 60 ? t.description.substring(0, 60) + '...' : t.description;
-        const quality = t.qualityMeasure || '-';
+        const qm = t.qualityMeasure;
+        const qualityBtns = [3, 4, 5].map(v =>
+          `<button class="quality-inline-btn${qm === v ? ' active' : ''}" onclick="event.stopPropagation(); setQuickQuality('${t._id}', ${v})">${v}</button>`
+        ).join('');
+        const quality = `<div class="quality-inline">${qualityBtns}</div>`;
         const rustId = t.rustId || '-';
         const date = t.date ? new Date(t.date).toLocaleDateString() : '-';
         const attachCount = t.attachments ? t.attachments.length : 0;
@@ -995,6 +1040,23 @@
       }
 
       document.getElementById('taskModal').classList.remove('hidden');
+    }
+
+    async function setQuickQuality(id, score) {
+      try {
+        const res = await fetch(`/api/managertasks/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qualityMeasure: score })
+        });
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+        loadTasks();
+      } catch (error) {
+        alertManager.showAlert('Failed to update quality: ' + error.message, 'error');
+      }
     }
 
     async function editTask(id) {

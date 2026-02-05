@@ -371,6 +371,47 @@
     [data-theme="dark"] .year-filter:focus {
       box-shadow: 0 0 0 3px rgba(214, 69, 80, 0.2);
     }
+
+    /* Inline Quality Buttons (table) */
+    .quality-inline {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .quality-inline-btn {
+      width: 24px;
+      height: 24px;
+      border: 1.5px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      background: var(--surface-primary);
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .quality-inline-btn:hover {
+      border-color: var(--brand-primary);
+      color: var(--brand-primary);
+      transform: scale(1.1);
+    }
+
+    .quality-inline-btn.active {
+      background: var(--brand-primary);
+      border-color: var(--brand-primary);
+      color: white;
+      box-shadow: 0 0 8px rgba(180, 37, 45, 0.3);
+    }
+
+    [data-theme="dark"] .quality-inline-btn.active {
+      box-shadow: 0 0 12px rgba(214, 69, 80, 0.4);
+    }
   </style>
 </head>
 <body>
@@ -770,7 +811,11 @@
           html += '<td>' + task.totalActualHours.toFixed(2) + '</td>';
           html += '<td>' + (task.estimated !== null ? task.estimated : '<span class="badge warning">Missing</span>') + '</td>';
           html += '<td class="' + varianceClass + '">' + variance + '</td>';
-          html += '<td>' + (task.quality !== null ? task.quality + '/5' : '<span class="badge info">Missing</span>') + '</td>';
+          html += '<td><div class="quality-inline">';
+          [3, 4, 5].forEach(function(v) {
+            html += '<button class="quality-inline-btn' + (task.quality === v ? ' active' : '') + '" onclick="event.stopPropagation(); setQuickQuality(' + task.tfsId + ', ' + v + ')">' + v + '</button>';
+          });
+          html += '</div></td>';
           html += '<td class="actions-cell">';
           html += '<button class="btn btn-sm btn-primary" onclick="editTask(' + task.tfsId + ')">Edit</button> ';
           html += '<button class="btn btn-sm btn-danger" onclick="deleteTask(' + task.tfsId + ')">Delete</button>';
@@ -909,6 +954,23 @@
 
       setupFocusTrap(modal);
       setTimeout(() => document.getElementById('tfsIdInput').focus(), 100);
+    }
+
+    async function setQuickQuality(tfsId, score) {
+      try {
+        const res = await fetch('/api/tfs/' + tfsId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quality: score })
+        });
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+        loadTasks();
+      } catch (error) {
+        alertManager.showAlert('Failed to update quality: ' + error.message, 'error');
+      }
     }
 
     async function editTask(tfsId) {
