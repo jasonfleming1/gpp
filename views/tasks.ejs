@@ -785,7 +785,10 @@
         let pagHtml = '';
         if (pag.pages > 1) {
           if (pag.page > 1) pagHtml += '<a href="javascript:goToPage(' + (pag.page - 1) + ')" class="page-link">Prev</a>';
-          for (let i = 1; i <= Math.min(pag.pages, 10); i++) {
+          let startPage = Math.max(1, pag.page - 4);
+          let endPage = Math.min(pag.pages, startPage + 9);
+          startPage = Math.max(1, endPage - 9);
+          for (let i = startPage; i <= endPage; i++) {
             pagHtml += '<a href="javascript:goToPage(' + i + ')" class="page-link ' + (i === pag.page ? 'active' : '') + '">' + i + '</a>';
           }
           if (pag.page < pag.pages) pagHtml += '<a href="javascript:goToPage(' + (pag.page + 1) + ')" class="page-link">Next</a>';
