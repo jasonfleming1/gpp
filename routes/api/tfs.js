@@ -608,12 +608,23 @@ router.post('/recalculate-all', async (req, res) => {
 router.get('/developers/scorecard', async (req, res) => {
   try {
     const year = req.query.year ? parseInt(req.query.year) : null;
-    const tasks = await TfsTask.find({ totalActualHours: { $gt: 0 } }).lean();
+    // Include all tasks with actual hours OR orphaned entries (which always have time entries)
+    const tasks = await TfsTask.find({
+      $or: [
+        { totalActualHours: { $gt: 0 } },
+        { tfsIdNotEntered: true },
+        { tfsId: { $lt: 0 } }
+      ]
+    }).lean();
 
     // Build developer stats from task data
     const devStats = new Map();
+    // Track orphaned entry stats per developer (calculated live, not from Developer model)
+    const orphanedStats = new Map();
 
     for (const task of tasks) {
+      const isOrphanedEntry = task.tfsIdNotEntered === true || task.tfsId < 0;
+
       // Process time entries to calculate hours per developer (filtered by year if specified)
       const devHoursFromEntries = new Map();
       const taskIdsProcessed = new Set();
@@ -634,8 +645,17 @@ router.get('/developers/scorecard', async (req, res) => {
       // If year filter is active and no entries match, skip this task
       if (year && devHoursFromEntries.size === 0) continue;
 
-      // Use filtered hours if year is specified, otherwise use developerBreakdown
-      const hoursSource = year ? devHoursFromEntries : (task.developerBreakdown ? new Map(Object.entries(task.developerBreakdown)) : new Map());
+      // Always calculate from time entries if developerBreakdown is missing/empty
+      // This ensures orphaned entries and tasks with missing breakdown are counted
+      let hoursSource;
+      if (year) {
+        hoursSource = devHoursFromEntries;
+      } else if (task.developerBreakdown && Object.keys(task.developerBreakdown).length > 0) {
+        hoursSource = new Map(Object.entries(task.developerBreakdown));
+      } else {
+        // Fall back to calculating from time entries
+        hoursSource = devHoursFromEntries;
+      }
 
       for (const [name, hours] of hoursSource) {
         if (!devStats.has(name)) {
@@ -651,9 +671,21 @@ router.get('/developers/scorecard', async (req, res) => {
           });
         }
 
+        // Initialize orphaned stats for this developer
+        if (!orphanedStats.has(name)) {
+          orphanedStats.set(name, { hoursWithoutId: 0, taskCountWithoutId: 0 });
+        }
+
         const dev = devStats.get(name);
         dev.totalHours += hours;
         dev.taskCount += 1;
+
+        // Track orphaned entry stats (calculated live from TfsTask data)
+        if (isOrphanedEntry) {
+          const orphaned = orphanedStats.get(name);
+          orphaned.hoursWithoutId += hours;
+          orphaned.taskCountWithoutId += 1;
+        }
 
         // Track admin hours (tfsId 7300)
         if (task.tfsId === 7300) {
@@ -689,13 +721,10 @@ router.get('/developers/scorecard', async (req, res) => {
       }
     }
 
-    // Get developer records for hoursWithoutId stats
-    const devRecords = await Developer.find().lean();
-    const devRecordMap = new Map(devRecords.map(d => [`${d.firstName} ${d.lastName}`, d]));
-
     // Convert to array and calculate averages
+    // Use calculated orphaned stats instead of Developer model (which requires re-import)
     const developers = Array.from(devStats.values()).map(dev => {
-      const devRecord = devRecordMap.get(dev.name);
+      const orphaned = orphanedStats.get(dev.name) || { hoursWithoutId: 0, taskCountWithoutId: 0 };
       return {
         name: dev.name,
         totalHours: Math.round(dev.totalHours * 100) / 100,
@@ -703,8 +732,8 @@ router.get('/developers/scorecard', async (req, res) => {
         avgQuality: dev.qualityCount > 0 ? Math.round((dev.qualitySum / dev.qualityCount) * 100) / 100 : null,
         quarterlyHours: dev.quarterlyHours,
         quarterlyAdminHours: dev.quarterlyAdminHours,
-        taskCountWithoutId: devRecord?.taskCountWithoutId || 0,
-        hoursWithoutId: Math.round((devRecord?.hoursWithoutId || 0) * 100) / 100,
+        taskCountWithoutId: orphaned.taskCountWithoutId,
+        hoursWithoutId: Math.round(orphaned.hoursWithoutId * 100) / 100,
         adminHours: Math.round(dev.adminHours * 100) / 100
       };
     });
@@ -788,9 +817,44 @@ router.get('/charts/quality-distribution', async (req, res) => {
 // GET /api/tfs/charts/hours-by-developer
 router.get('/charts/hours-by-developer', async (req, res) => {
   try {
-    const developers = await Developer.find().sort({ totalHours: -1 }).limit(10).lean();
-    const labels = developers.map(d => `${d.firstName} ${d.lastName}`);
-    const data = developers.map(d => d.totalHours);
+    // Calculate hours from TfsTask data including orphaned entries
+    const tasks = await TfsTask.find({
+      $or: [
+        { totalActualHours: { $gt: 0 } },
+        { tfsIdNotEntered: true },
+        { tfsId: { $lt: 0 } }
+      ]
+    }).lean();
+
+    const devHours = new Map();
+    for (const task of tasks) {
+      // Use developerBreakdown if available, otherwise calculate from timeEntries
+      let hoursSource;
+      if (task.developerBreakdown && Object.keys(task.developerBreakdown).length > 0) {
+        hoursSource = Object.entries(task.developerBreakdown);
+      } else if (task.timeEntries && task.timeEntries.length > 0) {
+        const entryHours = new Map();
+        for (const entry of task.timeEntries) {
+          const name = `${entry.firstName} ${entry.lastName}`;
+          entryHours.set(name, (entryHours.get(name) || 0) + entry.workHrs);
+        }
+        hoursSource = Array.from(entryHours.entries());
+      } else {
+        hoursSource = [];
+      }
+
+      for (const [name, hours] of hoursSource) {
+        devHours.set(name, (devHours.get(name) || 0) + hours);
+      }
+    }
+
+    // Sort by hours descending and take top 10
+    const sorted = Array.from(devHours.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+
+    const labels = sorted.map(([name]) => name);
+    const data = sorted.map(([, hours]) => Math.round(hours * 100) / 100);
     res.json({ labels, data });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -818,11 +882,20 @@ router.get('/charts/estimate-accuracy', async (req, res) => {
 // GET /api/tfs/charts/task-status
 router.get('/charts/task-status', async (req, res) => {
   try {
+    // Include tasks with actual hours OR orphaned entries
+    const baseQuery = {
+      $or: [
+        { totalActualHours: { $gt: 0 } },
+        { tfsIdNotEntered: true },
+        { tfsId: { $lt: 0 } }
+      ]
+    };
+
     const [total, withEstimates, withQuality, complete] = await Promise.all([
-      TfsTask.countDocuments({ totalActualHours: { $gt: 0 } }),
-      TfsTask.countDocuments({ estimated: { $ne: null }, totalActualHours: { $gt: 0 } }),
-      TfsTask.countDocuments({ quality: { $ne: null } }),
-      TfsTask.countDocuments({ estimated: { $ne: null }, quality: { $ne: null } })
+      TfsTask.countDocuments(baseQuery),
+      TfsTask.countDocuments({ ...baseQuery, estimated: { $ne: null } }),
+      TfsTask.countDocuments({ ...baseQuery, quality: { $ne: null } }),
+      TfsTask.countDocuments({ ...baseQuery, estimated: { $ne: null }, quality: { $ne: null } })
     ]);
 
     res.json({

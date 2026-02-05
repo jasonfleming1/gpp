@@ -4,7 +4,8 @@
       "Bash(python:*)",
       "Bash(node -e:*)",
       "Bash(node scripts/check-date-fields.js:*)",
-      "Bash(node scripts/check-miriah.js:*)"
+      "Bash(node scripts/check-miriah.js:*)",
+      "Bash(node -c:*)"
     ]
   }
 }
