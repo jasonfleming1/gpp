@@ -5,7 +5,9 @@
       "Bash(node -e:*)",
       "Bash(node scripts/check-date-fields.js:*)",
       "Bash(node scripts/check-miriah.js:*)",
-      "Bash(node -c:*)"
+      "Bash(node -c:*)",
+      "Bash(timeout 10 node:*)",
+      "Bash(find:*)"
     ]
   }
 }
