@@ -97,6 +97,10 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Application is required' });
     }
 
+    // Auto-assign sortOrder to max + 1
+    const maxDoc = await Release.findOne().sort({ sortOrder: -1 }).select('sortOrder').lean();
+    const nextOrder = (maxDoc && maxDoc.sortOrder != null) ? maxDoc.sortOrder + 1 : 0;
+
     const releaseData = {
       application,
       releaseDate: releaseDate ? new Date(releaseDate) : null,
@@ -104,6 +108,7 @@ router.post('/', async (req, res) => {
       uat: uat || '',
       prod: prod || '',
       notes: notes || '',
+      sortOrder: nextOrder,
       history: []
     };
 
@@ -144,6 +149,28 @@ router.get('/applications', async (req, res) => {
   try {
     const applications = await AppOption.getValues('applications');
     res.json(applications);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/releases/reorder - Bulk update sort order
+router.put('/reorder', async (req, res) => {
+  try {
+    const { order } = req.body;
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ error: 'order must be an array of { id, sortOrder }' });
+    }
+
+    const ops = order.map(item => ({
+      updateOne: {
+        filter: { _id: item.id },
+        update: { $set: { sortOrder: item.sortOrder } }
+      }
+    }));
+
+    await Release.bulkWrite(ops);
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

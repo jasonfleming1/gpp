@@ -398,6 +398,51 @@
     .attach-indicator svg {
       color: var(--brand-secondary);
     }
+
+    /* Drag handle column */
+    .data-table th.col-drag,
+    .data-table td.cell-drag {
+      width: 36px;
+      min-width: 36px;
+      max-width: 36px;
+      text-align: center;
+      padding: 0.375rem 0.25rem;
+    }
+
+    .data-table td.cell-drag {
+      cursor: grab;
+    }
+
+    .data-table td.cell-drag:active {
+      cursor: grabbing;
+    }
+
+    .drag-handle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .drag-handle svg {
+      opacity: 0.2;
+      transition: opacity 0.15s ease;
+      width: 16px;
+      height: 16px;
+      color: var(--text-muted);
+    }
+
+    .data-table tbody tr:hover .drag-handle svg {
+      opacity: 0.6;
+    }
+
+    .data-table tbody tr.dragging {
+      opacity: 0.4;
+      background: rgba(5, 113, 150, 0.05);
+    }
+
+    .data-table tbody tr.drag-over {
+      box-shadow: inset 0 -2px 0 0 var(--brand-secondary);
+    }
   </style>
 </head>
 <body>
@@ -556,6 +601,7 @@
           <table class="data-table">
             <thead>
               <tr>
+                <th class="col-drag"></th>
                 <th class="sortable" data-sort="application">Application</th>
                 <th class="sortable" data-sort="releaseDate">Date</th>
                 <th class="sortable" data-sort="tqa">TQA</th>
@@ -584,8 +630,15 @@
   <script src="/js/app.js"></script>
   <script>
     let currentPage = 1;
-    let sortField = 'application';
+    let sortField = 'sortOrder';
     let sortOrder = 'asc';
+    let currentReleases = [];
+
+    const gripIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg>';
+
+    // Drag state
+    let draggedRow = null;
+    let draggedIndex = -1;
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
@@ -655,14 +708,15 @@
     }
 
     function renderReleasesTable(releases) {
+      currentReleases = releases;
       const tbody = document.getElementById('releasesTable');
 
       if (releases.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No releases found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No releases found</td></tr>';
         return;
       }
 
-      tbody.innerHTML = releases.map(r => {
+      tbody.innerHTML = releases.map((r, idx) => {
         const notes = r.notes ? (r.notes.length > 40 ? r.notes.substring(0, 40) + '...' : r.notes) : '-';
         const tqa = r.tqa || '-';
         const uat = r.uat || '-';
@@ -673,7 +727,8 @@
         const attachIcon = attachCount > 0 ? `<span class="attach-indicator" title="${attachCount} attachment(s)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>${attachCount}</span>` : '';
 
         return `
-          <tr>
+          <tr draggable="true" data-id="${r._id}" data-index="${idx}">
+            <td class="cell-drag"><div class="drag-handle">${gripIcon}</div></td>
             <td><span class="badge info">${r.application}</span>${attachIcon}</td>
             <td>${releaseDate}</td>
             <td class="version-cell">${tqa}</td>
@@ -688,6 +743,8 @@
           </tr>
         `;
       }).join('');
+
+      setupReleaseDragDrop();
     }
 
     function renderPagination(pagination) {
@@ -1023,6 +1080,107 @@
           }
         }
       });
+    }
+
+    // ============================================
+    // DRAG-AND-DROP REORDERING
+    // ============================================
+
+    function setupReleaseDragDrop() {
+      document.querySelectorAll('#releasesTable tr[draggable="true"]').forEach(row => {
+        row.addEventListener('dragstart', handleDragStart);
+        row.addEventListener('dragover', handleDragOver);
+        row.addEventListener('dragenter', handleDragEnter);
+        row.addEventListener('dragleave', handleDragLeave);
+        row.addEventListener('drop', handleDrop);
+        row.addEventListener('dragend', handleDragEnd);
+      });
+    }
+
+    function handleDragStart(e) {
+      draggedRow = e.target.closest('tr');
+      draggedIndex = parseInt(draggedRow.dataset.index);
+      draggedRow.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedIndex.toString());
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDragEnter(e) {
+      const row = e.target.closest('tr');
+      if (row && row !== draggedRow && row.hasAttribute('draggable')) {
+        row.classList.add('drag-over');
+      }
+    }
+
+    function handleDragLeave(e) {
+      const row = e.target.closest('tr');
+      if (row) {
+        row.classList.remove('drag-over');
+      }
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      const targetRow = e.target.closest('tr');
+      if (!targetRow || targetRow === draggedRow) {
+        if (targetRow) targetRow.classList.remove('drag-over');
+        return;
+      }
+
+      const targetIndex = parseInt(targetRow.dataset.index);
+      if (draggedIndex === targetIndex) {
+        targetRow.classList.remove('drag-over');
+        return;
+      }
+
+      // Reorder the local array
+      const [moved] = currentReleases.splice(draggedIndex, 1);
+      currentReleases.splice(targetIndex, 0, moved);
+
+      targetRow.classList.remove('drag-over');
+
+      // Build order payload and save
+      const order = currentReleases.map((r, i) => ({ id: r._id, sortOrder: i }));
+      saveReleaseOrder(order);
+
+      // Switch to manual sort mode and re-render
+      sortField = 'sortOrder';
+      sortOrder = 'asc';
+      renderReleasesTable(currentReleases);
+    }
+
+    function handleDragEnd() {
+      if (draggedRow) {
+        draggedRow.classList.remove('dragging');
+      }
+      document.querySelectorAll('#releasesTable tr').forEach(row => {
+        row.classList.remove('drag-over');
+      });
+      draggedRow = null;
+      draggedIndex = -1;
+    }
+
+    async function saveReleaseOrder(order) {
+      try {
+        const res = await fetch('/api/releases/reorder', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order })
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error);
+        }
+      } catch (error) {
+        alertManager.showAlert('Failed to save order: ' + error.message, 'error');
+        loadReleases();
+      }
     }
   </script>
 </body>

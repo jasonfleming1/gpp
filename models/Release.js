@@ -61,6 +61,10 @@ const releaseSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  sortOrder: {
+    type: Number,
+    default: 0
+  },
   attachments: [attachmentSchema],
   history: [releaseHistorySchema]
 }, {
