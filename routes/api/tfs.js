@@ -920,8 +920,16 @@ router.get('/export/xlsx', async (req, res) => {
     // Get filter parameters (same as main list)
     const search = req.query.search || '';
     const filter = req.query.filter || 'all';
+    const year = req.query.year ? parseInt(req.query.year) : null;
 
     let query = {};
+
+    // Year filter - match tasks with time entries in the specified year
+    if (year) {
+      const startOfYear = new Date(year, 0, 1);
+      const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
+      query['timeEntries.workDate'] = { $gte: startOfYear, $lte: endOfYear };
+    }
 
     if (search) {
       const searchNum = parseInt(search);
@@ -943,15 +951,17 @@ router.get('/export/xlsx', async (req, res) => {
     }
 
     if (filter === 'needsEstimate') {
-      query.$and = [
+      query.$and = query.$and || [];
+      query.$and.push(
         { $or: [{ estimated: null }, { estimated: { $exists: false } }] },
         { totalActualHours: { $gt: 0 } }
-      ];
+      );
     } else if (filter === 'needsQuality') {
-      query.$and = [
+      query.$and = query.$and || [];
+      query.$and.push(
         { $or: [{ quality: null }, { quality: { $exists: false } }] },
         { totalActualHours: { $gt: 0 } }
-      ];
+      );
     } else if (filter === 'complete') {
       query.estimated = { $ne: null, $exists: true };
       query.quality = { $ne: null, $exists: true };
@@ -983,17 +993,17 @@ router.get('/export/xlsx', async (req, res) => {
 
     const worksheet = workbook.addWorksheet('Tasks');
 
-    // Define columns
+    // Define columns - matches the "All" tasks view
     worksheet.columns = [
       { header: 'ASD ID', key: 'tfsId', width: 12 },
       { header: 'Title', key: 'title', width: 50 },
-      { header: 'Application', key: 'application', width: 20 },
-      { header: 'Estimated Hours', key: 'estimated', width: 15 },
+      { header: 'Developers', key: 'developers', width: 30 },
+      { header: 'Quarter', key: 'quarter', width: 18 },
+      { header: 'Date Range', key: 'dateRange', width: 25 },
       { header: 'Actual Hours', key: 'actual', width: 15 },
+      { header: 'Estimated Hours', key: 'estimated', width: 15 },
       { header: 'Variance', key: 'variance', width: 12 },
-      { header: 'Variance %', key: 'variancePercent', width: 12 },
-      { header: 'Quality', key: 'quality', width: 10 },
-      { header: 'Developers', key: 'developers', width: 40 }
+      { header: 'Quality', key: 'quality', width: 10 }
     ];
 
     // Style header row
@@ -1004,29 +1014,67 @@ router.get('/export/xlsx', async (req, res) => {
       fgColor: { argb: 'FFE0E0E0' }
     };
 
+    // Helper to get quarter string from date range
+    function formatQuarterRange(firstDate, lastDate) {
+      function getQuarter(dateStr) {
+        if (!dateStr) return null;
+        const d = new Date(dateStr + 'T00:00:00');
+        const q = Math.ceil((d.getMonth() + 1) / 3);
+        return { quarter: q, year: d.getFullYear() };
+      }
+      const first = getQuarter(firstDate);
+      const last = getQuarter(lastDate);
+      if (!first) return '-';
+      if (!last || (first.quarter === last.quarter && first.year === last.year)) {
+        return 'Q' + first.quarter + ' ' + first.year;
+      }
+      if (first.year === last.year) {
+        return 'Q' + first.quarter + '-Q' + last.quarter + ' ' + first.year;
+      }
+      return 'Q' + first.quarter + ' ' + first.year + ' - Q' + last.quarter + ' ' + last.year;
+    }
+
     // Add data rows
     for (const task of tasks) {
       const variance = task.estimated !== null ? task.estimated - task.totalActualHours : null;
-      const variancePercent = task.estimated !== null && task.estimated !== 0
-        ? ((task.estimated - task.totalActualHours) / task.estimated * 100).toFixed(1) + '%'
-        : null;
 
+      // Developer names (without hours, matching view)
       const devNames = task.developerBreakdown
-        ? Object.entries(task.developerBreakdown)
-            .map(([name, hours]) => name + ' (' + hours.toFixed(2) + 'h)')
-            .join(', ')
+        ? Object.keys(task.developerBreakdown).join(', ')
         : '';
+
+      // Resolve firstDate/lastDate (same logic as GET /api/tfs)
+      let firstDate = task.firstDate;
+      let lastDate = task.lastDate;
+      if (!firstDate && task.timeEntries && task.timeEntries.length > 0) {
+        const dates = task.timeEntries
+          .map(e => e.workDateOnly || (e.workDate ? new Date(e.workDate).toISOString().split('T')[0] : null))
+          .filter(d => d)
+          .sort();
+        if (dates.length > 0) {
+          firstDate = dates[0];
+          lastDate = dates[dates.length - 1];
+        }
+      }
+
+      // Format date range (matching view)
+      let dateRange = '-';
+      if (firstDate && lastDate) {
+        dateRange = firstDate === lastDate ? firstDate : firstDate + ' to ' + lastDate;
+      } else if (firstDate || lastDate) {
+        dateRange = firstDate || lastDate;
+      }
 
       worksheet.addRow({
         tfsId: task.tfsId,
         title: task.title || '',
-        application: task.application || '',
+        developers: devNames,
+        quarter: formatQuarterRange(firstDate, lastDate),
+        dateRange: dateRange,
         estimated: task.estimated,
         actual: task.totalActualHours,
         variance: variance,
-        variancePercent: variancePercent,
-        quality: task.quality,
-        developers: devNames
+        quality: task.quality
       });
     }
 
