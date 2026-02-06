@@ -598,20 +598,6 @@
                 <label for="taskApplication">Application *</label>
                 <select id="taskApplication" required>
                   <option value="">Select application...</option>
-                  <option value="ASD Manager">ASD Manager</option>
-                  <option value="CARMS">CARMS</option>
-                  <option value="RSRS">RSRS</option>
-                  <option value="namelessApp">namelessApp</option>
-                  <option value="DESI">DESI</option>
-                  <option value="DNN">DNN</option>
-                  <option value="MailgunAPI">MailgunAPI</option>
-                  <option value="Portal">Portal</option>
-                  <option value="SmartScan">SmartScan</option>
-                  <option value="SmartKey">SmartKey</option>
-                  <option value="WebApp">WebApp</option>
-                  <option value="Process">Process</option>
-                  <option value="Administrative">Administrative</option>
-                  <option value="Other">Other</option>
                 </select>
               </div>
               <div class="form-row">
@@ -622,9 +608,6 @@
                 <div class="form-group">
                   <label for="taskStatus">Status</label>
                   <select id="taskStatus">
-                    <option value="Not Started">Not Started</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Closed">Closed</option>
                   </select>
                 </div>
               </div>
@@ -796,10 +779,31 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
+      loadFormOptions();
       loadTasks();
       loadAppChips();
       setupEventListeners();
     });
+
+    async function loadFormOptions() {
+      try {
+        const [appsRes, statusesRes] = await Promise.all([
+          fetch('/api/options/applications'),
+          fetch('/api/options/taskStatuses')
+        ]);
+        const appsData = await appsRes.json();
+        const statusesData = await statusesRes.json();
+
+        const appSelect = document.getElementById('taskApplication');
+        appSelect.innerHTML = '<option value="">Select application...</option>' +
+          appsData.values.map(v => `<option value="${v}">${v}</option>`).join('');
+
+        const statusSelect = document.getElementById('taskStatus');
+        statusSelect.innerHTML = statusesData.values.map(v => `<option value="${v}">${v}</option>`).join('');
+      } catch (error) {
+        console.error('Failed to load form options:', error);
+      }
+    }
 
     // Toggle filter accordion
     function toggleFilterAccordion() {

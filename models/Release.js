@@ -39,7 +39,6 @@ const releaseHistorySchema = new mongoose.Schema({
 const releaseSchema = new mongoose.Schema({
   application: {
     type: String,
-    enum: ['ASD Manager', 'CARMS', 'RSRS', 'namelessApp', 'DESI', 'DNN', 'MailgunAPI', 'Other', 'Portal', 'SmartScan', 'SmartKey', 'WebApp', 'Process', 'Administrative'],
     required: true
   },
   releaseDate: {

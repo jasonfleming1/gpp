@@ -444,20 +444,6 @@
                   <label for="releaseApplication">Application *</label>
                   <select id="releaseApplication" required>
                     <option value="">Select...</option>
-                    <option value="ASD Manager">ASD Manager</option>
-                    <option value="CARMS">CARMS</option>
-                    <option value="RSRS">RSRS</option>
-                    <option value="namelessApp">namelessApp</option>
-                    <option value="DESI">DESI</option>
-                    <option value="DNN">DNN</option>
-                    <option value="MailgunAPI">MailgunAPI</option>
-                    <option value="Portal">Portal</option>
-                    <option value="SmartScan">SmartScan</option>
-                    <option value="SmartKey">SmartKey</option>
-                    <option value="WebApp">WebApp</option>
-                    <option value="Process">Process</option>
-                    <option value="Administrative">Administrative</option>
-                    <option value="Other">Other</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -603,9 +589,23 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
+      loadFormOptions();
       loadReleases();
       setupEventListeners();
     });
+
+    async function loadFormOptions() {
+      try {
+        const res = await fetch('/api/options/applications');
+        const data = await res.json();
+
+        const select = document.getElementById('releaseApplication');
+        select.innerHTML = '<option value="">Select...</option>' +
+          data.values.map(v => `<option value="${v}">${v}</option>`).join('');
+      } catch (error) {
+        console.error('Failed to load form options:', error);
+      }
+    }
 
     function setupEventListeners() {
       // Sort headers

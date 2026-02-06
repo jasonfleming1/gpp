@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const ManagerTask = require('../../models/ManagerTask');
+const AppOption = require('../../models/AppOption');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -176,20 +177,20 @@ router.get('/by-status', async (req, res) => {
   }
 });
 
-// GET /api/managertasks/applications - Get distinct applications
+// GET /api/managertasks/applications - Get applications from options
 router.get('/applications', async (req, res) => {
   try {
-    const applications = ManagerTask.schema.path('application').enumValues;
+    const applications = await AppOption.getValues('applications');
     res.json(applications);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET /api/managertasks/statuses - Get distinct statuses
+// GET /api/managertasks/statuses - Get statuses from options
 router.get('/statuses', async (req, res) => {
   try {
-    const statuses = ManagerTask.schema.path('status').enumValues;
+    const statuses = await AppOption.getValues('taskStatuses');
     res.json(statuses);
   } catch (error) {
     res.status(500).json({ error: error.message });

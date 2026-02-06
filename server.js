@@ -24,6 +24,7 @@ const meetingsApiRoutes = require('./routes/api/meetings');
 const managerTasksApiRoutes = require('./routes/api/managertasks');
 const releasesApiRoutes = require('./routes/api/releases');
 const adminApiRoutes = require('./routes/api/admin');
+const optionsApiRoutes = require('./routes/api/options');
 const pageRoutes = require('./routes/pages');
 
 app.use('/api/tfs', tfsApiRoutes);
@@ -31,6 +32,7 @@ app.use('/api/meetings', meetingsApiRoutes);
 app.use('/api/managertasks', managerTasksApiRoutes);
 app.use('/api/releases', releasesApiRoutes);
 app.use('/api/admin', adminApiRoutes);
+app.use('/api/options', optionsApiRoutes);
 app.use('/', pageRoutes);
 
 // Developers API
@@ -65,6 +67,10 @@ async function start() {
   try {
     await mongoose.connect(MONGODB_URI);
     console.log('Connected to MongoDB');
+
+    // Seed default app options if they don't exist
+    const AppOption = require('./models/AppOption');
+    await AppOption.seedDefaults();
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running at http://localhost:${PORT}`);

@@ -7,12 +7,10 @@ const meetingSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['1:1', 'ASD Standup', 'ASD Monthly', 'Requirements', 'Leadership', 'Steering', 'Design'],
     required: true
   },
   employee: {
     type: String,
-    enum: ['ASD', 'Kevin Crabb', 'Jason Fleming', 'Miriah Pooler', 'Curtis Smith', 'Naga Surapaneni', 'Claus Michelsen', 'Amy Lake', 'Sales', 'Project Team'],
     required: true
   },
   meetingDuration: {

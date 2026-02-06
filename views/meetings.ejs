@@ -219,29 +219,12 @@
                 <label for="meetingType">Meeting Type</label>
                 <select id="meetingType" required>
                   <option value="">Select type...</option>
-                  <option value="1:1">1:1</option>
-                  <option value="ASD Standup">ASD Standup</option>
-                  <option value="ASD Monthly">ASD Monthly</option>
-                  <option value="Requirements">Requirements</option>
-                  <option value="Leadership">Leadership</option>
-                  <option value="Steering">Steering</option>
-                  <option value="Design">Design</option>
                 </select>
               </div>
               <div class="form-group">
                 <label for="meetingEmployee">Employee/Team</label>
                 <select id="meetingEmployee" required>
                   <option value="">Select employee...</option>
-                  <option value="ASD">ASD</option>
-                  <option value="Kevin Crabb">Kevin Crabb</option>
-                  <option value="Jason Fleming">Jason Fleming</option>
-                  <option value="Miriah Pooler">Miriah Pooler</option>
-                  <option value="Curtis Smith">Curtis Smith</option>
-                  <option value="Naga Surapaneni">Naga Surapaneni</option>
-                  <option value="Claus Michelsen">Claus Michelsen</option>
-                  <option value="Amy Lake">Amy Lake</option>
-                  <option value="Sales">Sales</option>
-                  <option value="Project Team">Project Team</option>
                 </select>
               </div>
             </div>
@@ -297,12 +280,8 @@
       <div id="mainContent" style="display: none;">
         <!-- Filters -->
         <div class="toolbar">
-          <div class="filters">
+          <div class="filters" id="typeFilters">
             <button class="filter-btn active" data-filter="all">All</button>
-            <button class="filter-btn" data-filter="1:1">1:1</button>
-            <button class="filter-btn" data-filter="ASD Standup">Standup</button>
-            <button class="filter-btn" data-filter="ASD Monthly">Monthly</button>
-            <button class="filter-btn" data-filter="Leadership">Leadership</button>
           </div>
           <div class="search-bar">
             <input type="text" id="searchInput" placeholder="Search meetings...">
@@ -348,22 +327,49 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
+      loadFormOptions();
       loadMeetings();
       setupEventListeners();
     });
 
-    function setupEventListeners() {
-      // Filter buttons
-      document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          currentFilter = btn.dataset.filter;
-          currentPage = 1;
-          loadMeetings();
-        });
-      });
+    async function loadFormOptions() {
+      try {
+        const [typesRes, employeesRes] = await Promise.all([
+          fetch('/api/options/meetingTypes'),
+          fetch('/api/options/meetingEmployees')
+        ]);
+        const typesData = await typesRes.json();
+        const employeesData = await employeesRes.json();
 
+        const typeSelect = document.getElementById('meetingType');
+        typeSelect.innerHTML = '<option value="">Select type...</option>' +
+          typesData.values.map(v => `<option value="${v}">${v}</option>`).join('');
+
+        const empSelect = document.getElementById('meetingEmployee');
+        empSelect.innerHTML = '<option value="">Select employee...</option>' +
+          employeesData.values.map(v => `<option value="${v}">${v}</option>`).join('');
+
+        // Populate filter buttons
+        const filtersDiv = document.getElementById('typeFilters');
+        filtersDiv.innerHTML = '<button class="filter-btn active" data-filter="all">All</button>' +
+          typesData.values.map(v => `<button class="filter-btn" data-filter="${v}">${v}</button>`).join('');
+
+        // Re-bind filter button events
+        filtersDiv.querySelectorAll('.filter-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            filtersDiv.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilter = btn.dataset.filter;
+            currentPage = 1;
+            loadMeetings();
+          });
+        });
+      } catch (error) {
+        console.error('Failed to load form options:', error);
+      }
+    }
+
+    function setupEventListeners() {
       // Search
       let searchTimeout;
       document.getElementById('searchInput').addEventListener('input', (e) => {

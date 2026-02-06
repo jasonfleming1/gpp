@@ -35,7 +35,6 @@ const managerTaskSchema = new mongoose.Schema({
   attachments: [attachmentSchema],
   application: {
     type: String,
-    enum: ['ASD Manager', 'CARMS', 'RSRS', 'namelessApp', 'DESI', 'DNN', 'MailgunAPI', 'Other', 'Portal', 'SmartScan', 'SmartKey', 'WebApp', 'Process', 'Administrative'],
     required: true
   },
   description: {
@@ -48,7 +47,6 @@ const managerTaskSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Not Started', 'In Progress', 'Closed'],
     default: 'Not Started'
   },
   qualityMeasure: {

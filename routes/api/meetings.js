@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Meeting = require('../../models/Meeting');
+const AppOption = require('../../models/AppOption');
 
 // ============================================
 // STATIC ROUTES FIRST
@@ -129,20 +130,20 @@ router.get('/by-employee', async (req, res) => {
   }
 });
 
-// GET /api/meetings/types - Get distinct meeting types
+// GET /api/meetings/types - Get meeting types from options
 router.get('/types', async (req, res) => {
   try {
-    const types = Meeting.schema.path('type').enumValues;
+    const types = await AppOption.getValues('meetingTypes');
     res.json(types);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET /api/meetings/employees - Get distinct employees
+// GET /api/meetings/employees - Get employees from options
 router.get('/employees', async (req, res) => {
   try {
-    const employees = Meeting.schema.path('employee').enumValues;
+    const employees = await AppOption.getValues('meetingEmployees');
     res.json(employees);
   } catch (error) {
     res.status(500).json({ error: error.message });

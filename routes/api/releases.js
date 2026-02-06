@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const Release = require('../../models/Release');
+const AppOption = require('../../models/AppOption');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -138,10 +139,10 @@ router.get('/by-application', async (req, res) => {
   }
 });
 
-// GET /api/releases/applications - Get distinct applications
+// GET /api/releases/applications - Get applications from options
 router.get('/applications', async (req, res) => {
   try {
-    const applications = Release.schema.path('application').enumValues;
+    const applications = await AppOption.getValues('applications');
     res.json(applications);
   } catch (error) {
     res.status(500).json({ error: error.message });
