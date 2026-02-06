@@ -221,14 +221,8 @@
 
     .settings-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: 1fr;
       gap: var(--space-6);
-    }
-
-    @media (max-width: 900px) {
-      .settings-grid {
-        grid-template-columns: 1fr;
-      }
     }
 
     /* Option table card */
@@ -272,24 +266,7 @@
 
     /* Table wrapper */
     .option-table-wrapper {
-      max-height: 320px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      scroll-behavior: smooth;
-    }
-
-    .option-table-wrapper::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    .option-table-wrapper::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .option-table-wrapper::-webkit-scrollbar-thumb {
-      background: var(--border-default);
-      border-radius: 4px;
-      border: 2px solid var(--surface-primary);
+      overflow: visible;
     }
 
     /* Actual table */
@@ -300,8 +277,6 @@
     }
 
     .option-table thead {
-      position: sticky;
-      top: 0;
       z-index: 2;
     }
 
