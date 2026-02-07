@@ -125,7 +125,7 @@ router.post('/', async (req, res) => {
     }
 
     if (date) {
-      taskData.date = new Date(date);
+      taskData.date = new Date(date + 'T00:00:00');
     }
 
     if (qualityMeasure !== undefined && qualityMeasure !== null && qualityMeasure !== '') {
@@ -295,7 +295,7 @@ router.put('/:id', async (req, res) => {
 
     const updateData = {};
     if (rustId !== undefined) updateData.rustId = rustId.trim() || null;
-    if (date !== undefined) updateData.date = date ? new Date(date) : null;
+    if (date !== undefined) updateData.date = date ? new Date(date + 'T00:00:00') : null;
     if (application !== undefined) updateData.application = application;
     if (description !== undefined) updateData.description = description;
     if (release !== undefined) updateData.release = release;

@@ -906,7 +906,7 @@
         document.getElementById('modalTitle').textContent = 'Edit Manager Task';
         document.getElementById('taskId').value = task._id;
         document.getElementById('taskRustId').value = task.rustId || '';
-        document.getElementById('taskDate').value = task.date ? task.date.substring(0, 10) : '';
+        document.getElementById('taskDate').value = task.date ? new Date(task.date).toLocaleDateString('en-CA') : '';
         document.getElementById('taskApplication').value = task.application;
         document.getElementById('taskDescription').value = task.description;
         document.getElementById('taskRelease').value = task.release || '';
