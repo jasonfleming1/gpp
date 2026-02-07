@@ -242,116 +242,18 @@
       }
     }
 
-    /* Accordion Filter Panel */
-    .filter-accordion {
-      margin-bottom: var(--space-4);
-    }
-
-    .filter-accordion-header {
+    /* Filter Toolbar */
+    .filter-toolbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: var(--space-3) var(--space-4);
-      background: rgba(255, 255, 255, 0.5);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: var(--radius-lg);
-      cursor: pointer;
-      transition: all var(--transition-fast);
-      user-select: none;
+      gap: var(--space-4);
+      margin-bottom: var(--space-3);
     }
 
-    [data-theme="dark"] .filter-accordion-header {
-      background: rgba(30, 41, 59, 0.5);
-      border: 1px solid rgba(148, 163, 184, 0.1);
-    }
-
-    .filter-accordion-header:hover {
-      background: rgba(255, 255, 255, 0.65);
-      border-color: var(--brand-secondary);
-    }
-
-    [data-theme="dark"] .filter-accordion-header:hover {
-      background: rgba(30, 41, 59, 0.65);
-    }
-
-    .filter-accordion-title {
+    .filter-toolbar-actions {
       display: flex;
-      align-items: center;
       gap: var(--space-2);
-      font-size: var(--font-size-sm);
-      font-weight: 600;
-      color: var(--text-secondary);
-    }
-
-    .filter-accordion-icon {
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform var(--transition-fast);
-    }
-
-    .filter-accordion.open .filter-accordion-icon {
-      transform: rotate(180deg);
-    }
-
-    .filter-accordion-badge {
-      background: var(--brand-secondary);
-      color: white;
-      padding: var(--space-1) var(--space-2);
-      border-radius: var(--radius-full);
-      font-size: var(--font-size-xs);
-      font-weight: 600;
-      min-width: 20px;
-      text-align: center;
-    }
-
-    .filter-accordion-content {
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.3s ease-out, padding 0.3s ease-out;
-      background: rgba(255, 255, 255, 0.4);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-top: none;
-      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-      margin-top: -1px;
-    }
-
-    [data-theme="dark"] .filter-accordion-content {
-      background: rgba(30, 41, 59, 0.4);
-      border: 1px solid rgba(148, 163, 184, 0.08);
-      border-top: none;
-    }
-
-    .filter-accordion.open .filter-accordion-content {
-      max-height: 300px;
-      padding: var(--space-4);
-    }
-
-    .filter-accordion.open .filter-accordion-header {
-      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    }
-
-    .filter-section {
-      margin-bottom: var(--space-4);
-    }
-
-    .filter-section:last-child {
-      margin-bottom: 0;
-    }
-
-    .filter-section-label {
-      font-size: var(--font-size-xs);
-      font-weight: 600;
-      color: var(--text-tertiary);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: var(--space-2);
     }
 
     /* Application filter chips */
@@ -359,6 +261,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-2);
+      margin-bottom: var(--space-4);
     }
 
     .app-chip {
@@ -387,20 +290,6 @@
 
     [data-theme="dark"] .app-chip.active {
       box-shadow: 0 0 12px rgba(61, 142, 179, 0.3);
-    }
-
-    /* Search toolbar */
-    .search-toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: var(--space-4);
-      margin-bottom: var(--space-4);
-    }
-
-    .search-toolbar .search-bar {
-      flex: 1;
-      max-width: 400px;
     }
 
     /* Attachments Section */
@@ -669,10 +558,6 @@
     <div class="dashboard">
       <div class="page-header">
         <h1>Manager Tasks</h1>
-        <div style="display: flex; gap: var(--space-2);">
-          <button class="btn btn-info" onclick="openAddModal()">Add Task</button>
-          <a href="/admin" class="btn btn-secondary">Admin</a>
-        </div>
       </div>
 
       <!-- Loading State -->
@@ -697,44 +582,23 @@
 
       <!-- Main Content -->
       <div id="mainContent" style="display: none;">
-        <!-- Search Bar -->
-        <div class="search-toolbar">
-          <div class="search-bar">
-            <input type="text" id="searchInput" placeholder="Search tasks...">
+        <!-- Filter Toolbar -->
+        <div class="filter-toolbar">
+          <div class="filters">
+            <button class="filter-btn active" data-status="all">All</button>
+            <button class="filter-btn" data-status="Not Started">Not Started</button>
+            <button class="filter-btn" data-status="In Progress">In Progress</button>
+            <button class="filter-btn" data-status="Closed">Closed</button>
+          </div>
+          <div class="filter-toolbar-actions">
+            <button class="btn btn-info" onclick="openAddModal()">Add Task</button>
+            <a href="/admin" class="btn btn-secondary">Admin</a>
           </div>
         </div>
 
-        <!-- Collapsible Filter Accordion -->
-        <div class="filter-accordion" id="filterAccordion">
-          <div class="filter-accordion-header" onclick="toggleFilterAccordion()">
-            <div class="filter-accordion-title">
-              <svg class="filter-accordion-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-              <span>Filters</span>
-            </div>
-            <span class="filter-accordion-badge" id="activeFilterCount">0</span>
-          </div>
-          <div class="filter-accordion-content">
-            <!-- Status Filters -->
-            <div class="filter-section">
-              <div class="filter-section-label">Status</div>
-              <div class="filters">
-                <button class="filter-btn active" data-status="all">All</button>
-                <button class="filter-btn" data-status="Not Started">Not Started</button>
-                <button class="filter-btn" data-status="In Progress">In Progress</button>
-                <button class="filter-btn" data-status="Closed">Closed</button>
-              </div>
-            </div>
-
-            <!-- Application Filters -->
-            <div class="filter-section">
-              <div class="filter-section-label">Application</div>
-              <div class="app-filter-chips" id="appChips">
-                <button class="app-chip active" data-app="all">All Apps</button>
-              </div>
-            </div>
-          </div>
+        <!-- Application Chips -->
+        <div class="app-filter-chips" id="appChips">
+          <button class="app-chip active" data-app="all">All Apps</button>
         </div>
 
         <!-- Tasks Table -->
@@ -772,7 +636,6 @@
     let currentPage = 1;
     let currentStatus = 'all';
     let currentApp = 'all';
-    let currentSearch = '';
     let sortField = 'createdAt';
     let sortOrder = 'desc';
     let selectedQuality = null;
@@ -805,20 +668,6 @@
       }
     }
 
-    // Toggle filter accordion
-    function toggleFilterAccordion() {
-      const accordion = document.getElementById('filterAccordion');
-      accordion.classList.toggle('open');
-    }
-
-    // Update active filter count badge
-    function updateFilterCount() {
-      let count = 0;
-      if (currentStatus !== 'all') count++;
-      if (currentApp !== 'all') count++;
-      document.getElementById('activeFilterCount').textContent = count;
-    }
-
     function setupEventListeners() {
       // Status filter buttons
       document.querySelectorAll('.filter-btn[data-status]').forEach(btn => {
@@ -827,20 +676,8 @@
           btn.classList.add('active');
           currentStatus = btn.dataset.status;
           currentPage = 1;
-          updateFilterCount();
           loadTasks();
         });
-      });
-
-      // Search
-      let searchTimeout;
-      document.getElementById('searchInput').addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-          currentSearch = e.target.value;
-          currentPage = 1;
-          loadTasks();
-        }, 300);
       });
 
       // Sort headers
@@ -900,7 +737,6 @@
             chip.classList.add('active');
             currentApp = chip.dataset.app;
             currentPage = 1;
-            updateFilterCount();
             loadTasks();
           });
         });
@@ -919,7 +755,6 @@
 
       if (currentStatus !== 'all') params.set('status', currentStatus);
       if (currentApp !== 'all') params.set('application', currentApp);
-      if (currentSearch) params.set('search', currentSearch);
 
       try {
         const res = await fetch(`/api/managertasks?${params}`);
@@ -927,7 +762,7 @@
 
         document.getElementById('loadingState').style.display = 'none';
 
-        if (data.pagination.total === 0 && currentStatus === 'all' && currentApp === 'all' && !currentSearch) {
+        if (data.pagination.total === 0 && currentStatus === 'all' && currentApp === 'all') {
           document.getElementById('emptyState').style.display = 'block';
           document.getElementById('mainContent').style.display = 'none';
         } else {

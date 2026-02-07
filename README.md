@@ -1,533 +1,395 @@
 # ASD Tracker
 
-A corporate time tracking and analytics application for managing TFS tasks, developer scorecards, and meeting metrics.
-
-## Table of Contents
-
-- [Chart.js Measures](#chartjs-measures)
-  - [Dashboard Task Analytics](#dashboard-task-analytics)
-  - [Dashboard Meeting Analytics](#dashboard-meeting-analytics)
-  - [Scorecard Charts](#scorecard-charts)
-- [Data Loading Logic](#data-loading-logic)
-  - [Task Data Loading](#task-data-loading)
-  - [Meeting Data Loading](#meeting-data-loading)
-  - [Chart Data Aggregation](#chart-data-aggregation)
-- [Excel Import Requirements](#excel-import-requirements)
-  - [Required Workbook Structure](#required-workbook-structure)
-  - [Sheet 1: "3e" (Timesheet Data)](#sheet-1-3e-timesheet-data)
-  - [Sheet 2: "scorebyTFS" (Task Metadata)](#sheet-2-scorebytfs-task-metadata)
-  - [TFS ID Extraction Patterns](#tfs-id-extraction-patterns)
-  - [Skipped Activities](#skipped-activities)
-  - [Special Processing Rules](#special-processing-rules)
+An internal web application that consolidates timesheet data, task tracking, meeting metrics, developer performance, and software release management into a single platform for the ASD team.
 
 ---
 
-## Chart.js Measures
+## Problem It Solves
 
-### Dashboard Task Analytics
-
-The dashboard displays 4 task analytics charts loaded from `/api/tfs/charts/*` endpoints:
-
-#### 1. Task Status Chart (Doughnut)
-
-**Endpoint:** `/api/tfs/charts/task-status`
-
-| Metric | Description |
-|--------|-------------|
-| Needs Estimate | Tasks with actual hours > 0 but no estimated hours set |
-| Needs Quality | Tasks with estimated hours set but no quality score |
-| Complete | Tasks with both estimated hours AND quality score assigned |
-
-**Calculation:**
-- Total tasks with `totalActualHours > 0`
-- Tasks with estimates: `estimated !== null`
-- Complete tasks: `estimated !== null AND quality !== null`
-- Needs Estimate = Total - Tasks with estimates
-- Needs Quality = Tasks with estimates - Complete
+Before this tool, operational data lived across disconnected systems - timesheets in 3e, task tracking in spreadsheets, meeting notes in emails, release versions in shared documents. ASD Tracker brings all of this into one place with automated analysis, eliminating manual reconciliation and providing real-time visibility into team performance and project health.
 
 ---
 
-#### 2. Quality Distribution Chart (Bar)
+## Core Capabilities
 
-**Endpoint:** `/api/tfs/charts/quality-distribution`
+### 1. Timesheet Ingestion & Task Tracking
 
-| Score | Label | Description |
-|-------|-------|-------------|
-| 1 | Poor | Lowest quality rating |
-| 2 | Below Avg | Below average quality |
-| 3 | Average | Meets expectations |
-| 4 | Good | Above average quality |
-| 5 | Excellent | Highest quality rating |
+The system imports Excel exports from the 3e billing system and automatically:
 
-**Calculation:** Groups tasks by quality score (1-5) and counts tasks in each category. Only includes tasks where `quality !== null`.
+- Parses developer time entries and groups them by TFS task ID
+- Extracts task identifiers from timecard narratives using pattern matching
+- Flags orphaned work (hours logged without a valid TFS ID)
+- Calculates total actual hours, developer breakdowns, and date ranges per task
+- Filters out non-work activities (PTO, holidays, leave)
 
----
+This replaces the manual process of cross-referencing timesheets with task lists.
 
-#### 3. Hours by Developer Chart (Horizontal Bar)
+### 2. Automated Estimation & Quality Scoring
 
-**Endpoint:** `/api/tfs/charts/hours-by-developer`
+Two algorithms reduce subjective bias in project metrics:
 
-| Metric | Description |
-|--------|-------------|
-| Developer Name | Full name (firstName + lastName) |
-| Total Hours | Sum of all `workHrs` from time entries for this developer |
+**Estimation (Bell-Curve Method)**
+- Groups tasks by developer or matter number
+- Calculates the median actual hours and median absolute deviation for each group
+- Produces statistically grounded estimates that are resilient to outlier tasks
 
-**Calculation:**
-- Aggregates all time entries across all tasks
-- Groups by developer name
-- Sums hours per developer
-- Returns top 10 developers sorted by hours descending
+**Quality Scoring (Variance-Based)**
 
----
+| Score | Criteria | Meaning |
+|-------|----------|---------|
+| 5 | 25%+ under budget | Excellent |
+| 4 | 10-25% under budget | Good |
+| 3 | Within 25% of estimate | Meets expectations |
+| 2 | More than 25% over budget | Below average |
 
-#### 4. Estimated vs Actual Hours Chart (Grouped Bar)
+Both can be run in bulk across the entire task set or applied individually.
 
-**Endpoint:** `/api/tfs/charts/estimate-accuracy`
+### 3. Developer Scorecard
 
-| Metric | Color | Description |
-|--------|-------|-------------|
-| Estimated | Gold | Hours estimated for the task |
-| Actual | Blue | Total actual hours worked (`totalActualHours`) |
+Aggregates per-developer performance metrics including:
 
-**Calculation:**
-- Filters tasks with both `estimated !== null` AND `totalActualHours > 0`
-- Returns last 20 tasks (sorted by tfsId descending)
-- Displays side-by-side comparison for estimation accuracy analysis
+- Total hours worked and task count
+- Hours and tasks without a TFS ID (untracked work)
+- Average quality scores
+- Quarterly trend charts showing workload over time
 
----
+This provides an objective, data-driven view of individual contribution and workload balance.
 
-### Dashboard Meeting Analytics
+### 4. Meeting Analytics
 
-The dashboard displays 4 meeting analytics charts loaded from `/api/meetings/charts/*` endpoints:
+Tracks meetings by type (standup, 1:1, requirements, leadership, etc.) and attendee, with:
 
-#### 1. Hours by Meeting Type (Doughnut)
+- Total and average duration metrics
+- Monthly trend analysis
+- Distribution by day of week
+- Breakdowns by meeting type and employee/team
 
-**Endpoint:** `/api/meetings/charts/by-type`
+Answers questions like: "How much time does the team spend in standups vs. requirements sessions?" and "Are meeting hours trending up or down?"
 
-| Meeting Type | Description |
-|--------------|-------------|
-| 1:1 | One-on-one meetings |
-| ASD Standup | Daily standup meetings |
-| ASD Monthly | Monthly team meetings |
-| Requirements | Requirements gathering sessions |
-| Leadership | Leadership/management meetings |
-| Steering | Steering committee meetings |
-| Design | Design review sessions |
+### 5. Manager Task Tracking
 
-**Calculation:** Groups all meetings by type, sums `meetingDuration` for each type.
+A dedicated task board for management-level work items with:
 
----
+- Status tracking (Not Started, In Progress, Closed)
+- Application assignment and quality scoring (1-5)
+- File attachments (documents, images, spreadsheets)
+- Filtering by status and application
 
-#### 2. Hours by Employee/Team (Horizontal Bar)
+### 6. Release Management
 
-**Endpoint:** `/api/meetings/charts/by-employee`
+Tracks software releases across three environments:
 
-| Employee/Team | Description |
-|---------------|-------------|
-| ASD | ASD team meetings |
-| Kevin Crabb | Individual employee |
-| Jason Fleming | Individual employee |
-| Miriah Pooler | Individual employee |
-| Curtis Smith | Individual employee |
-| Claus Michelsen | Individual employee |
-| Amy Lake | Individual employee |
-| Sales | Sales team |
-| Project Team | Project team meetings |
+| Environment | Purpose |
+|-------------|---------|
+| TQA | Testing/QA build version |
+| UAT | User acceptance testing version |
+| Production | Live deployment version |
 
-**Calculation:** Groups meetings by employee field, sums `meetingDuration` and counts meetings per employee.
+Each release maintains a full change history (snapshots of every update) for audit purposes, and supports file attachments for release documentation.
+
+### 7. Administration
+
+A built-in admin panel provides:
+
+- **Configurable dropdowns** - Application names, task statuses, meeting types, and employee lists are stored in the database and editable without code changes
+- **Database tools** - Export any collection as JSON, import data from JSON backups, view collection sizes and document counts
+- **Bulk operations** - Clear and reimport data, recalculate totals, fix low estimates
 
 ---
 
-#### 3. Monthly Meeting Trend (Dual-axis Line)
+## Dashboard
 
-**Endpoint:** `/api/meetings/charts/monthly-trend`
+The home page provides an at-a-glance overview with:
 
-| Metric | Axis | Description |
-|--------|------|-------------|
-| Hours | Left Y-axis | Total meeting hours per month |
-| Count | Right Y-axis | Number of meetings per month |
-
-**Calculation:**
-- Extracts year and month from meeting dates
-- Groups by year-month combination
-- Sums hours and counts meetings per month
-- Sorted chronologically
-
----
-
-#### 4. Meetings by Day of Week (Bar)
-
-**Endpoint:** `/api/meetings/charts/weekly-distribution`
-
-| Day | Description |
-|-----|-------------|
-| Sun | Sunday (day 1) |
-| Mon | Monday (day 2) |
-| Tue | Tuesday (day 3) |
-| Wed | Wednesday (day 4) |
-| Thu | Thursday (day 5) |
-| Fri | Friday (day 6) |
-| Sat | Saturday (day 7) |
-
-**Calculation:** Extracts day of week from meeting dates, groups and sums hours per day.
+- **Summary cards** - Total tasks, hours tracked, average quality, task completion rate
+- **8 interactive charts** powered by Chart.js:
+  - Task status distribution (needs estimate / needs quality / complete)
+  - Quality score distribution across all tasks
+  - Top 10 developers by hours worked
+  - Estimated vs. actual hours comparison
+  - Meeting hours by type and by employee/team
+  - Monthly meeting trends
+  - Meeting distribution by day of week
 
 ---
 
-### Scorecard Charts
+## Technical Summary
 
-The developer scorecard page displays performance charts:
+| Aspect | Detail |
+|--------|--------|
+| **Runtime** | Node.js with Express web framework |
+| **Database** | MongoDB (document database) |
+| **Frontend** | Server-rendered HTML with vanilla JavaScript and Chart.js |
+| **File Handling** | Excel import/export via ExcelJS, file uploads via Multer |
+| **Dependencies** | 6 production packages (Express, Mongoose, EJS, ExcelJS, Multer, dotenv) |
+| **API** | ~70 REST endpoints across 6 routers |
+| **Hosting** | Self-hosted, single-server deployment |
+| **Configuration** | 2 environment variables (port and database connection string) |
 
-#### 1. Developer Mini Sparkline Charts (Line)
-
-Small charts embedded in each developer card showing quarterly performance.
-
-| Metric | Style | Description |
-|--------|-------|-------------|
-| Total Hours | Solid line | Hours worked per quarter |
-| Admin Hours | Dashed line | Administrative hours (TFS ID 7300) per quarter |
-
----
-
-#### 2. Hours Comparison Chart (Horizontal Bar)
-
-| Metric | Description |
-|--------|-------------|
-| Developer | Top 10 developers by hours |
-| Hours | Total hours worked |
-
-**Sorting:** Descending by total hours.
+There is no frontend framework (React, Angular, etc.), no build step, and no external service dependencies beyond MongoDB. This keeps the deployment simple and the maintenance burden low.
 
 ---
 
-#### 3. Quality Scores Comparison (Horizontal Bar)
+## Architecture
 
-| Metric | Color Coding | Description |
-|--------|--------------|-------------|
-| Average Quality >= 4 | Green | Good to excellent quality |
-| Average Quality >= 3 | Orange | Average quality |
-| Average Quality < 3 | Red | Below average quality |
+```
+                   Browser
+                     |
+              HTTP Requests
+                     |
+                     v
+            +-----------------+
+            |  Express Server |
+            |  (Node.js)      |
+            +--------+--------+
+                     |
+          +----------+----------+
+          |                     |
+    Page Routes           API Routes
+    (EJS HTML)           (JSON Data)
+          |                     |
+          v                     v
+    +----------+        +-------------+
+    | Templates |        |  MongoDB    |
+    | (9 views) |        |  (6 colls)  |
+    +----------+        +-------------+
+                              |
+                     +--------+--------+
+                     |                 |
+               File Storage      Excel I/O
+              (uploads dir)    (import/export)
+```
 
-**Calculation:** Average of all quality scores per developer.
+### Data Collections
+
+| Collection | Records | Purpose |
+|------------|---------|---------|
+| **tfstasks** | Core dataset | Tasks with embedded time entries, estimates, quality scores |
+| **developers** | Derived | Developer profiles with aggregated statistics |
+| **managertasks** | Independent | Manager-level task tracking with attachments |
+| **meetings** | Independent | Meeting records with duration and type |
+| **releases** | Independent | Software release versions with history |
+| **appoptions** | Configuration | Editable dropdown values for all forms |
 
 ---
 
-#### 4. Quarterly Workload Trends (Multi-line)
+## Data Flow
 
-| Metric | Style | Description |
-|--------|-------|-------------|
-| Developer Hours | Solid colored lines | Top 5 developers' quarterly hours |
-| Team Admin | Dashed gray line | Team admin hours (TFS ID 7300) |
+### Import Pipeline
 
-**X-axis Labels:** Quarter format (Q1 2025, Q2 2025, etc.)
+```
+3e Excel Export  -->  Upload to ASD Tracker  -->  Parse timesheet rows
+                                                        |
+                                    Extract TFS IDs from narratives
+                                                        |
+                                    Group entries by task, aggregate hours
+                                                        |
+                                    Merge with scorebyTFS metadata
+                                                        |
+                                    Create/update task + developer records
+```
 
----
+### Estimation Pipeline
 
-## Data Loading Logic
+```
+Tasks without estimates  -->  Group by developer/matter
+                                       |
+                              Calculate median + MAD per group
+                                       |
+                              Generate estimates (median + 0.5 * MAD)
+                                       |
+                              Ensure estimate >= actual hours
+```
 
-### Task Data Loading
+### Quality Pipeline
 
-**Endpoint:** `GET /api/tfs`
-
-**Query Parameters:**
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `page` | 1 | Page number for pagination |
-| `limit` | 25 | Tasks per page |
-| `search` | - | Search by TFS ID (numeric) or title/developer name (text) |
-| `filter` | all | Filter type (see below) |
-| `sortField` | tfsId | Sort field |
-| `sortOrder` | desc | Sort direction (asc/desc) |
-| `year` | - | Filter by year of time entries |
-
-**Filter Values:**
-
-| Filter | Criteria | Description |
-|--------|----------|-------------|
-| `all` | No filter applied | Shows all tasks in the system regardless of completion status. Use this to see the complete task list. |
-| `needsEstimate` | `estimated === null AND totalActualHours > 0` | Tasks that have logged work hours but no estimate has been entered. These tasks need an estimate to be added so variance can be calculated. Typically used during sprint planning or retrospectives to ensure all worked tasks have estimates. |
-| `needsQuality` | `quality === null AND estimated !== null` | Tasks that have an estimate but are missing a quality score. These tasks have been estimated but not yet reviewed for quality. Use this filter to find tasks awaiting quality assessment after completion. |
-| `complete` | `estimated !== null AND quality !== null` | Fully completed tasks with both an estimate and quality score assigned. These tasks are ready for reporting and metrics analysis. The "complete" status indicates all required fields are filled. |
-| `noActual` | `totalActualHours === 0 OR totalActualHours === null` | Tasks with no developer time entries logged. These may be placeholder tasks, tasks imported from the scorebyTFS sheet without matching timesheet data, or tasks created manually that haven't been worked yet. |
-
-**Response Structure:**
-
-```json
-{
-  "tasks": [
-    {
-      "tfsId": 12345,
-      "title": "Task description",
-      "estimated": 8,
-      "quality": 4,
-      "totalActualHours": 7.5,
-      "developers": ["John Doe", "Jane Smith"]
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 25,
-    "total": 150,
-    "pages": 6
-  }
-}
+```
+Tasks with estimates  -->  Calculate variance %
+                                    |
+                           Apply threshold scoring (2-5)
+                                    |
+                           Update quality field
 ```
 
 ---
 
-### Meeting Data Loading
+## Project Structure
 
-**Endpoint:** `GET /api/meetings`
-
-**Query Parameters:**
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `page` | 1 | Page number |
-| `limit` | 25 | Meetings per page |
-| `type` | - | Filter by meeting type |
-| `search` | - | Search in summary text |
-| `sortField` | date | Sort field |
-| `sortOrder` | desc | Sort direction |
-
----
-
-### Chart Data Aggregation
-
-All chart endpoints use MongoDB aggregation pipelines:
-
-**Quality Distribution Pipeline:**
-```javascript
-[
-  { $match: { quality: { $ne: null } } },
-  { $group: { _id: "$quality", count: { $sum: 1 } } },
-  { $sort: { _id: 1 } }
-]
 ```
-
-**Hours by Developer Pipeline:**
-```javascript
-[
-  { $unwind: "$timeEntries" },
-  { $group: {
-      _id: { $concat: ["$timeEntries.firstName", " ", "$timeEntries.lastName"] },
-      hours: { $sum: "$timeEntries.workHrs" }
-  }},
-  { $sort: { hours: -1 } },
-  { $limit: 10 }
-]
+gpp/
+├── server.js               # Application entry point
+├── models/                 # 6 database schemas
+│   ├── TfsTask.js          # Core task entity with time entries
+│   ├── Developer.js        # Developer profiles
+│   ├── ManagerTask.js      # Manager tasks with attachments
+│   ├── Meeting.js          # Meeting records
+│   ├── Release.js          # Release versions with history
+│   └── AppOption.js        # Configurable dropdown values
+├── routes/
+│   ├── pages.js            # Page rendering (9 pages)
+│   └── api/                # REST API (6 route files)
+│       ├── tfs.js          # Task operations + analytics
+│       ├── managertasks.js # Manager task operations
+│       ├── meetings.js     # Meeting operations + analytics
+│       ├── releases.js     # Release operations
+│       ├── options.js      # Dropdown management
+│       └── admin.js        # Database administration
+├── services/
+│   └── excelParser.js      # 3e Excel import logic
+├── views/                  # HTML templates (self-contained)
+├── public/                 # CSS design system + shared JS
+└── uploads/                # File attachment storage
 ```
 
 ---
 
-## Excel Import Requirements
+## Pages
 
-### Required Workbook Structure
-
-The import requires an Excel file (`.xlsx` or `.xls`) with exactly two sheets:
-
-| Sheet Name | Purpose |
-|------------|---------|
-| `3e` | Timesheet/time entry data |
-| `scorebyTFS` | Task metadata (estimates and quality scores) |
+| Page | Purpose |
+|------|---------|
+| **Dashboard** (`/`) | Summary stats and 8 interactive charts |
+| **Tasks** (`/tasks`) | Task list with filtering, sorting, pagination, bulk operations |
+| **Task Detail** (`/tasks/:id`) | Individual task with time entry breakdown |
+| **Scorecard** (`/scorecard`) | Developer performance metrics and trend charts |
+| **Meetings** (`/meetings`) | Meeting tracking with type/employee filtering |
+| **Manager Tasks** (`/managertasks`) | Manager task board with status and quality tracking |
+| **Releases** (`/releases`) | Release version tracking across environments |
+| **Admin** (`/admin`) | Database management, dropdown configuration, import/export |
 
 ---
+
+## Running the Application
+
+```bash
+npm install       # Install dependencies (one-time)
+npm run dev       # Development mode (auto-reload on changes)
+npm start         # Production mode
+```
+
+Requires Node.js and a running MongoDB instance. Configuration is handled by two environment variables in a `.env` file:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `PORT` | 3000 | Server port |
+| `MONGODB_URI` | `mongodb://localhost:27017/gpp_tfs_tracker` | Database connection |
+
+On startup, the application automatically seeds default dropdown values (application names, task statuses, meeting types, employee names) if they don't already exist.
+
+---
+
+## Excel Import Specification
+
+The import accepts an Excel workbook with two sheets:
 
 ### Sheet 1: "3e" (Timesheet Data)
 
-This sheet contains raw timesheet entries. **All columns are required.**
-
-| Column Name | Data Type | Description | Example |
-|-------------|-----------|-------------|---------|
-| `TimekeeperNumber` | Number | Unique employee identifier | 12345 |
-| `FirstName` | Text | Employee first name | John |
-| `LastName` | Text | Employee last name | Doe |
-| `Title` | Text | Employee job title | Developer |
-| `WorkDate` | Date | Date work was performed | 2025-01-15 |
-| `WorkHrs` | Number | Hours worked (decimal) | 2.5 |
-| `TimecardNarrative` | Text | Work description (contains TFS ID) | "TFS Task 19479 - Bug fix" |
-| `ActivityCode` | Text | Activity type code | DEV |
-| `ActivityCodeDesc` | Text | Activity description | Development |
-| `MatterNumber` | Text | Alternative task ID (fallback) | PROJ-001 |
-| `MatterName` | Text | Alternative task name | Project Alpha |
-
-**Important Notes:**
-- The first row must be column headers (exact names as shown above)
-- `WorkDate` can be Excel date format or text date
-- `TimecardNarrative` is parsed to extract TFS ID (see patterns below)
-- If no TFS ID is found in narrative, `MatterNumber` is used as fallback
-
----
+| Column | Description |
+|--------|-------------|
+| TimekeeperNumber | Employee ID |
+| FirstName / LastName | Employee name |
+| Title | Job title |
+| WorkDate | Date of work |
+| WorkHrs | Hours worked (decimal) |
+| TimecardNarrative | Work description (parsed for TFS task ID) |
+| ActivityCode / ActivityCodeDesc | Activity classification |
+| MatterNumber / MatterName | Billing matter reference |
 
 ### Sheet 2: "scorebyTFS" (Task Metadata)
 
-This sheet contains task estimates and quality scores.
+| Column | Description |
+|--------|-------------|
+| ID | TFS task ID |
+| Title | Task description |
+| Estimated | Estimated hours |
+| Quality | Quality score (1-5) |
 
-| Column Name | Data Type | Required | Description | Example |
-|-------------|-----------|----------|-------------|---------|
-| `ID` | Number | Yes | TFS Task ID | 19479 |
-| `Title` | Text | No | Task description | Fix login bug |
-| `Estimated` | Number | No | Estimated hours | 8 |
-| `Quality` | Number | No | Quality score (1-5) | 4 |
+### TFS ID Extraction
 
-**Important Notes:**
-- `ID` must match TFS IDs extracted from the "3e" sheet
-- `Estimated` should be a positive number or empty/null
-- `Quality` must be 1, 2, 3, 4, or 5 (or empty/null)
-- Rows with missing `ID` are skipped
+The parser identifies task IDs from narrative text using these patterns:
 
----
+| Pattern | Example |
+|---------|---------|
+| "TFS Task XXXXX" | "TFS Task 19479 - Bug fix" |
+| "TFS XXXXX" | "TFS 19455 development" |
+| "Task XXXXX" | "Task 19532 complete" |
+| "XXXXX - description" | "19542 - UI updates" |
 
-### TFS ID Extraction Patterns
+Entries where no TFS ID can be extracted are flagged as orphaned work.
 
-The parser extracts TFS IDs from the `TimecardNarrative` column using these patterns (in priority order):
+### Filtered Activities
 
-| Pattern | Example | Extracted ID |
-|---------|---------|--------------|
-| `TFS Task XXXXX` | "TFS Task 19479 - Bug fix" | 19479 |
-| `TFS XXXXX` | "TFS 19455 development" | 19455 |
-| `Task XXXXX` | "Task 19532 complete" | 19532 |
-| `XXXXX - description` | "19542 - UI updates" | 19542 |
-| `<tag>XXXXX</tag>` | "`<task>19542</task>`" | 19542 |
-
-**Rules:**
-- Pattern matching is case-insensitive
-- Only 5-digit numbers are matched (XXXXX)
-- First matching pattern wins
-- If no pattern matches, `MatterNumber` is used as the task identifier
+Non-work activities are automatically excluded: PTO/Vacation, Holiday, Death in Family, Leave Without Pay, Administrative Shutdown.
 
 ---
 
-### Skipped Activities
+## API Reference
 
-The following activity types are automatically excluded from import:
-
-| Activity Description | Reason |
-|---------------------|--------|
-| PTO/Vacation | Non-work time |
-| Holiday | Non-work time |
-| Death in Family | Leave time |
-| Leave Without Pay | Leave time |
-| Administrative Shutdown | Non-work time |
-
-Matching is case-insensitive and checks the `ActivityCodeDesc` column.
-
----
-
-### Special Processing Rules
-
-#### Miriah Pooler Auto-Assignment
-
-When a task has time entries from Miriah Pooler:
-- If `quality` is null, it is automatically set to **4**
-- If `estimated` is null, it is automatically set to `totalActualHours`
-
-#### TFS ID Not Entered Flag
-
-Tasks where the TFS ID came from `MatterNumber` (not from narrative) are marked with `[TFS ID Not Entered]` prefix in the title.
-
-#### Data Merging Logic
-
-When importing:
-1. Timesheet data ("3e") is parsed first
-2. Score data ("scorebyTFS") is parsed second
-3. Records are matched by TFS ID
-4. For matching records:
-   - Title is updated from score data if better
-   - `estimated` and `quality` are added from score data
-5. Orphan score records (no timesheet entries) are added as empty tasks
-6. All data is sorted by TFS ID descending
-
-#### Import Modes
-
-| Mode | Behavior |
-|------|----------|
-| Standard Import | Upserts tasks (creates new, updates existing) |
-| Clear & Import | Deletes ALL existing tasks and developers before import |
-
-**Upsert Behavior:**
-- If task exists: Updates title, estimated, quality, merges time entries
-- If task is new: Creates new task record
-- Developer statistics are recalculated after import
-
----
-
-## Data Models
-
-### TfsTask Schema
-
-```javascript
-{
-  tfsId: Number,           // Unique task identifier (required, indexed)
-  title: String,           // Task description
-  application: String,     // Software application name
-  estimated: Number,       // Estimated hours (min: 0)
-  quality: Number,         // Quality score (1-5)
-  timeEntries: [{          // Array of work time entries
-    timekeeperNumber: Number,
-    firstName: String,
-    lastName: String,
-    title: String,
-    workDate: Date,
-    workHrs: Number,
-    narrative: String,
-    activityCode: String
-  }],
-  totalActualHours: Number,  // Calculated sum of all workHrs
-  developerBreakdown: Map    // { developerName: hours }
-}
-```
-
-### Meeting Schema
-
-```javascript
-{
-  date: Date,              // Meeting date (required)
-  type: String,            // Meeting type enum (required)
-  employee: String,        // Employee/team enum (required)
-  meetingDuration: Number, // Duration in hours (required, min: 0)
-  summary: String          // Meeting notes/summary
-}
-```
-
----
-
-## API Endpoints Reference
-
-### Tasks
+### Task Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/tfs` | List tasks (paginated) |
-| GET | `/api/tfs/:id` | Get single task |
+| GET | `/api/tfs` | List tasks (paginated, filterable, sortable) |
+| GET | `/api/tfs/:id` | Single task detail |
 | POST | `/api/tfs` | Create task |
 | PUT | `/api/tfs/:id` | Update task |
 | DELETE | `/api/tfs/:id` | Delete task |
-| POST | `/api/tfs/import` | Import Excel file |
-| GET | `/api/tfs/export/xlsx` | Export to Excel |
-| GET | `/api/tfs/stats` | Dashboard statistics |
-| GET | `/api/tfs/years` | Available years |
-| GET | `/api/tfs/developers/scorecard` | Developer scorecard data |
+| POST | `/api/tfs/import` | Import Excel workbook |
+| GET | `/api/tfs/export/xlsx` | Export all tasks to Excel |
+| GET | `/api/tfs/stats` | Summary statistics |
+| GET | `/api/tfs/developers/scorecard` | Developer performance data |
+| POST | `/api/tfs/calculate-estimates` | Run bell-curve estimation |
+| POST | `/api/tfs/calculate-quality` | Run quality scoring |
 
-### Meetings
+### Meeting Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/meetings` | List meetings (paginated) |
-| GET | `/api/meetings/:id` | Get single meeting |
 | POST | `/api/meetings` | Create meeting |
 | PUT | `/api/meetings/:id` | Update meeting |
 | DELETE | `/api/meetings/:id` | Delete meeting |
+| GET | `/api/meetings/stats` | Meeting statistics |
 
-### Charts
+### Manager Task Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/tfs/charts/task-status` | Task status distribution |
-| GET | `/api/tfs/charts/quality-distribution` | Quality score distribution |
-| GET | `/api/tfs/charts/hours-by-developer` | Hours per developer |
-| GET | `/api/tfs/charts/estimate-accuracy` | Estimated vs actual hours |
-| GET | `/api/meetings/charts/by-type` | Meeting hours by type |
-| GET | `/api/meetings/charts/by-employee` | Meeting hours by employee |
-| GET | `/api/meetings/charts/monthly-trend` | Monthly meeting trends |
-| GET | `/api/meetings/charts/weekly-distribution` | Meetings by day of week |
+| GET | `/api/managertasks` | List tasks (paginated) |
+| POST | `/api/managertasks` | Create task |
+| PUT | `/api/managertasks/:id` | Update task |
+| DELETE | `/api/managertasks/:id` | Delete task |
+| POST | `/api/managertasks/:id/attachments` | Upload files |
+
+### Release Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/releases` | List releases |
+| POST | `/api/releases` | Create release |
+| PUT | `/api/releases/:id` | Update release |
+| DELETE | `/api/releases/:id` | Delete release |
+| GET | `/api/releases/:id/history` | View change history |
+| POST | `/api/releases/:id/attachments` | Upload files |
+
+### Admin Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/admin/collections` | List collections with counts |
+| GET | `/api/admin/export/:collection` | Export collection as JSON |
+| POST | `/api/admin/import/:collection` | Import JSON data |
+| GET | `/api/options/:category` | Get dropdown values |
+| PUT | `/api/options/:category` | Update dropdown values |
+
+### Chart Endpoints
+
+| Endpoint | Chart Type | Data |
+|----------|------------|------|
+| `/api/tfs/charts/task-status` | Doughnut | Needs Estimate / Needs Quality / Complete |
+| `/api/tfs/charts/quality-distribution` | Bar | Tasks per quality score (1-5) |
+| `/api/tfs/charts/hours-by-developer` | Horizontal Bar | Top 10 developers by hours |
+| `/api/tfs/charts/estimate-accuracy` | Grouped Bar | Estimated vs. actual (last 20 tasks) |
+| `/api/meetings/charts/by-type` | Doughnut | Meeting hours by type |
+| `/api/meetings/charts/by-employee` | Horizontal Bar | Meeting hours by employee |
+| `/api/meetings/charts/monthly-trend` | Dual-axis Line | Monthly meeting count and hours |
+| `/api/meetings/charts/weekly-distribution` | Bar | Meeting hours by day of week |
